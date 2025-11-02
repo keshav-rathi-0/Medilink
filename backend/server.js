@@ -2,10 +2,11 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const logger = require('./utils/logger'); // existing logger import
+const logger = require('./utils/logger');
 const helmet = require('helmet');
 const mongoSanitize = require('express-mongo-sanitize');
 const rateLimit = require('express-rate-limit');
+const errorHandler = require('./middleware/errorHandler'); // added import
 
 // Routes
 const authRoutes = require('./routes/authRoutes');
@@ -21,50 +22,44 @@ const reportRoutes = require('./routes/reportRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 
 const app = express();
-const PORT = process.env.PORT || 3000
+const PORT = process.env.PORT || 3000; // single declaration
 
-// simple CORS allowing your Vercel domain and localhost for dev
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://medilink1.vercel.app'
-const allowedOrigins = ['http://localhost:5173', 'http://localhost:3000', FRONTEND_URL, 'https://medilink1.vercel.app']
+// CORS
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://medilink1.vercel.app';
+const allowedOrigins = ['http://localhost:5173', 'http://localhost:3000', FRONTEND_URL, 'https://medilink1.vercel.app'];
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin) return callback(null, true) // allow non-browser (curl)
-    return allowedOrigins.includes(origin) ? callback(null, true) : callback(new Error('CORS blocked'), false)
+    if (!origin) return callback(null, true);
+    return allowedOrigins.includes(origin) ? callback(null, true) : callback(new Error('CORS blocked'), false);
   },
   credentials: true,
   methods: ['GET','POST','PUT','DELETE','OPTIONS'],
   allowedHeaders: ['Content-Type','Authorization']
-}))
+}));
 
-app.use(express.json())
+// Body parsers
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// log incoming requests for debugging
-app.use((req, res, next) => {
-  logger.info(`${req.method} ${req.originalUrl} - Origin: ${req.get('Origin') || 'none'}`)
-  next()
-})
-
-// simple root & health endpoints
-app.get('/', (req, res) => res.status(200).json({ message: 'MediLink API', health: '/health' }))
-app.get('/health', (req, res) => res.status(200).json({ status: 'ok', ts: new Date().toISOString() }))
-
-// 🧠 Security & middleware
+// Security middlewares
 app.use(helmet());
 app.use(mongoSanitize());
 
-// 🧱 Rate limiter
+// Rate limiter
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
 });
 app.use('/api/', limiter);
 
-// 🧩 Body parsers
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Log incoming requests (single middleware)
+app.use((req, res, next) => {
+  logger.info(`${req.method} ${req.originalUrl} - Origin: ${req.get('Origin') || 'none'}`);
+  next();
+});
 
-// 🧠 Connect MongoDB
+// Connect MongoDB
 mongoose.connect(process.env.MONGO_URI)
   .then(() => logger.info('✅ MongoDB connected'))
   .catch(err => {
@@ -72,7 +67,7 @@ mongoose.connect(process.env.MONGO_URI)
     process.exit(1);
   });
 
-// 🛣️ API routes
+// API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/doctors', doctorRoutes);
 app.use('/api/patients', patientRoutes);
@@ -85,48 +80,29 @@ app.use('/api/staff', staffRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/dashboards', dashboardRoutes);
 
-// ✅ Health check
-app.get('/health', (req, res) => {
-  return res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
-});
+// Root & health
+app.get('/', (req, res) => res.status(200).json({ message: 'MediLink API', health: '/health' }));
+app.get('/health', (req, res) => res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() }));
 
-// Simple root and health endpoints for Render and quick checks
-app.get('/', (req, res) => {
-  return res.status(200).json({ message: 'MediLink API', health: '/health' })
-});
-
-// Log incoming requests (helpful for CORS/origin debugging)
-app.use((req, res, next) => {
-  logger.info(`${req.method} ${req.originalUrl} - Origin: ${req.get('Origin') || 'none'}`)
-  next()
-});
-
-// ⚠️ Error handler
+// Error handler and 404
 app.use(errorHandler);
-
-// ⚠️ 404 handler
 app.use((req, res) => {
   res.status(404).json({ message: 'Route not found' });
 });
 
-// Ensure port uses Render's provided PORT
-const PORT = process.env.PORT || 3000
-
-// Start server with robust logging
+// Start server
 const server = app.listen(PORT, () => {
-  logger.info(`🚀 Server running on port ${PORT} - env: ${process.env.NODE_ENV || 'development'}`)
-})
+  logger.info(`🚀 Server running on port ${PORT} - env: ${process.env.NODE_ENV || 'development'}`);
+});
 
-// Graceful handling of uncaught errors
-process.on('unhandledRejection', (reason, promise) => {
-  logger?.error ? logger.error('Unhandled Rejection', reason) : console.error('Unhandled Rejection', reason)
-  // keep process alive for Render to restart, but log details
-})
+// Global error listeners
+process.on('unhandledRejection', (reason) => {
+  logger?.error ? logger.error('Unhandled Rejection', reason) : console.error('Unhandled Rejection', reason);
+});
 
 process.on('uncaughtException', (err) => {
-  logger?.error ? logger.error('Uncaught Exception', err) : console.error('Uncaught Exception', err)
-  // optional: process.exit(1) // Render will restart; use only if you want immediate exit
-})
+  logger?.error ? logger.error('Uncaught Exception', err) : console.error('Uncaught Exception', err);
+});
 
 // ensure an Express error handler that returns JSON
 app.use((err, req, res, next) => {
