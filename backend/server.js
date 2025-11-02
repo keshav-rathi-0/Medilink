@@ -26,18 +26,32 @@ const PORT = process.env.PORT || 3000; // single declaration
 
 // CORS
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://medilink1.vercel.app';
-const allowedOrigins = ['http://localhost:5173', 'http://localhost:3000', FRONTEND_URL, 'https://medilink1.vercel.app'];
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  FRONTEND_URL,
+  'https://medilink1.vercel.app',
+  'https://medilink-oajt.onrender.com'
+];
 
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-    return allowedOrigins.includes(origin) ? callback(null, true) : callback(new Error('CORS blocked'), false);
+// CORS config: must be applied before routes are mounted
+const corsOptions = {
+  origin: function (origin, callback) {
+    // allow non-browser (curl, Postman) when origin is undefined
+    if (!origin) return callback(null, true)
+    if (allowedOrigins.includes(origin)) return callback(null, true)
+    return callback(new Error('CORS blocked by server'), false)
   },
   credentials: true,
-  methods: ['GET','POST','PUT','DELETE','OPTIONS'],
-  allowedHeaders: ['Content-Type','Authorization']
-}));
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With']
+}
 
+// apply CORS globally and respond to preflight OPTIONS
+app.use(require('cors')(corsOptions))
+app.options('*', require('cors')(corsOptions))
+
+// ensure this runs before app.use('/api', ...) routes
 // Body parsers
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
