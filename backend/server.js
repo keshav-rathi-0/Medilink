@@ -2,11 +2,10 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const logger = require('./utils/logger'); // existing logger import
 const helmet = require('helmet');
 const mongoSanitize = require('express-mongo-sanitize');
 const rateLimit = require('express-rate-limit');
-const logger = require('./utils/logger');
-const errorHandler = require('./middleware/errorHandler');
 
 // Routes
 const authRoutes = require('./routes/authRoutes');
@@ -22,22 +21,37 @@ const reportRoutes = require('./routes/reportRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 
 const app = express();
+const PORT = process.env.PORT || 3000
+
+// simple CORS allowing your Vercel domain and localhost for dev
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://medilink1.vercel.app'
+const allowedOrigins = ['http://localhost:5173', 'http://localhost:3000', FRONTEND_URL, 'https://medilink1.vercel.app']
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true) // allow non-browser (curl)
+    return allowedOrigins.includes(origin) ? callback(null, true) : callback(new Error('CORS blocked'), false)
+  },
+  credentials: true,
+  methods: ['GET','POST','PUT','DELETE','OPTIONS'],
+  allowedHeaders: ['Content-Type','Authorization']
+}))
+
+app.use(express.json())
+
+// log incoming requests for debugging
+app.use((req, res, next) => {
+  logger.info(`${req.method} ${req.originalUrl} - Origin: ${req.get('Origin') || 'none'}`)
+  next()
+})
+
+// simple root & health endpoints
+app.get('/', (req, res) => res.status(200).json({ message: 'MediLink API', health: '/health' }))
+app.get('/health', (req, res) => res.status(200).json({ status: 'ok', ts: new Date().toISOString() }))
 
 // 🧠 Security & middleware
 app.use(helmet());
 app.use(mongoSanitize());
-
-// ✅ Configure CORS to allow frontend connections
-const corsOptions = {
-  origin: [
-    'http://localhost:3000', // local development
-    'https://medilink-orcin-eta.vercel.app' // deployed frontend on Vercel
-  ],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true,
-};
-app.use(cors(corsOptions));
 
 // 🧱 Rate limiter
 const limiter = rateLimit({
@@ -73,7 +87,18 @@ app.use('/api/dashboards', dashboardRoutes);
 
 // ✅ Health check
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'OK' });
+  return res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Simple root and health endpoints for Render and quick checks
+app.get('/', (req, res) => {
+  return res.status(200).json({ message: 'MediLink API', health: '/health' })
+});
+
+// Log incoming requests (helpful for CORS/origin debugging)
+app.use((req, res, next) => {
+  logger.info(`${req.method} ${req.originalUrl} - Origin: ${req.get('Origin') || 'none'}`)
+  next()
 });
 
 // ⚠️ Error handler
@@ -84,8 +109,27 @@ app.use((req, res) => {
   res.status(404).json({ message: 'Route not found' });
 });
 
-// 🚀 Start server
-const PORT = process.env.PORT || 5001;
-app.listen(PORT, () => logger.info(`🚀 Server running on port ${PORT}`));
+// Ensure port uses Render's provided PORT
+const PORT = process.env.PORT || 3000
 
-module.exports = app;
+// Start server with robust logging
+const server = app.listen(PORT, () => {
+  logger.info(`🚀 Server running on port ${PORT} - env: ${process.env.NODE_ENV || 'development'}`)
+})
+
+// Graceful handling of uncaught errors
+process.on('unhandledRejection', (reason, promise) => {
+  logger?.error ? logger.error('Unhandled Rejection', reason) : console.error('Unhandled Rejection', reason)
+  // keep process alive for Render to restart, but log details
+})
+
+process.on('uncaughtException', (err) => {
+  logger?.error ? logger.error('Uncaught Exception', err) : console.error('Uncaught Exception', err)
+  // optional: process.exit(1) // Render will restart; use only if you want immediate exit
+})
+
+// ensure an Express error handler that returns JSON
+app.use((err, req, res, next) => {
+  logger?.error ? logger.error('Express error', err) : console.error('Express error', err)
+  res.status(err.status || 500).json({ message: err.message || 'Internal server error' })
+})

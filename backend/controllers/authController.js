@@ -2,31 +2,37 @@ const User = require('../models/User');
 const asyncHandler = require('../utils/asyncHandler');
 const sendEmail = require('../utils/email');
 const crypto = require('crypto');
+const logger = require('../utils/logger'); // ensure logger exists
 
-const register = async (req, res) => {
-  const { name, email, password, role, phone, address, dateOfBirth, gender } = req.body;
+const register = async (req, res, next) => {
+  try {
+    const { name, email, password, role, phone } = req.body
 
-  const userExists = await User.findOne({ email });
-  if (userExists) {
-    return res.status(400).json({ message: 'User already exists' });
-  }
-
-  const user = await User.create({
-    name, email, password, role, phone, address, dateOfBirth, gender
-  });
-
-  const token = user.generateToken();
-  
-  res.status(201).json({
-    success: true,
-    token,
-    user: {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role
+    // basic server-side guard (more validation may exist elsewhere)
+    if (!name || !email || !password || !phone) {
+      return res.status(400).json({ errors: [{ msg: 'Missing required fields', path: 'body' }] })
     }
-  });
+
+    // check duplicate
+    const existing = await User.findOne({ email })
+    if (existing) {
+      return res.status(409).json({ message: 'Email already registered' })
+    }
+
+    // create user (adjust fields to match your User model)
+    const user = new User({ name, email, password, role, phone })
+    await user.save()
+
+    // remove sensitive fields for response
+    const userSafe = { id: user._id, name: user.name, email: user.email, role: user.role }
+
+    return res.status(201).json({ message: 'User registered', user: userSafe })
+  } catch (err) {
+    // log full error for Render logs (do NOT leak stack to clients)
+    logger?.error ? logger.error('Register error', err) : console.error('Register error', err)
+    // return generic 500 so client sees failure but logs contain details
+    return res.status(500).json({ message: 'Internal server error' })
+  }
 };
 
 const  login =   async (req, res) => {

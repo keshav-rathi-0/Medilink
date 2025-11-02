@@ -4,7 +4,10 @@ import axios from 'axios'
 // If you have a .env file, add:
 // VITE_BACKEND_URL=https://medilink-uf1h.onrender.com
 // Otherwise, it will default to your deployed backend.
-const API_URL = import.meta.env.VITE_BACKEND_URL || 'https://medilink-uf1h.onrender.com'
+const API_URL = import.meta.env.VITE_BACKEND_URL || 'https://medilink-oajt.onrender.com'
+
+// Debug: show what the built app is using in browser console
+console.info('API base URL (built):', API_URL)
 
 // ✅ Axios instance
 const api = axios.create({
