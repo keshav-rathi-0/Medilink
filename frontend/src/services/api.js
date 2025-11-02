@@ -1,7 +1,12 @@
 import axios from 'axios'
 
-const API_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'
+// ✅ Base URL setup
+// If you have a .env file, add:
+// VITE_BACKEND_URL=https://medilink-uf1h.onrender.com
+// Otherwise, it will default to your deployed backend.
+const API_URL = import.meta.env.VITE_BACKEND_URL || 'https://medilink-uf1h.onrender.com'
 
+// ✅ Axios instance
 const api = axios.create({
   baseURL: `${API_URL}/api`,
   timeout: parseInt(import.meta.env.VITE_API_TIMEOUT) || 30000,
@@ -10,7 +15,7 @@ const api = axios.create({
   },
 })
 
-// Request interceptor
+// ✅ Request interceptor
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token')
@@ -19,12 +24,10 @@ api.interceptors.request.use(
     }
     return config
   },
-  (error) => {
-    return Promise.reject(error)
-  }
+  (error) => Promise.reject(error)
 )
 
-// Response interceptor
+// ✅ Response interceptor
 api.interceptors.response.use(
   (response) => response.data,
   (error) => {
