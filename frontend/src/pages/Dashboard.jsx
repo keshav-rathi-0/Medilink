@@ -2,28 +2,69 @@ import React from 'react'
 import { useAuth } from '../context/AuthContext'
 import AdminDashboard from '../components/dashboard/AdminDashboard'
 import DoctorDashboard from '../components/dashboard/DoctorDashboard'
+import PatientDashboard from '../components/dashboard/PatientDashboard'
+import NurseDashboard from '../components/dashboard/NurseDashboard'
+import ReceptionistDashboard from '../components/dashboard/ReceptionistDashboard'
+import Loader from '../components/common/Loader'
 
 const Dashboard = () => {
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
 
+  if (loading) {
+    return <Loader fullScreen text="Loading dashboard..." />
+  }
+
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-gray-500">No user data found</p>
+      </div>
+    )
+  }
+
+  // Render dashboard based on user role
   const renderDashboard = () => {
-    switch (user?.role) {
+    const role = user.role?.toLowerCase()
+
+    switch (role) {
       case 'admin':
+      case 'administrator':
         return <AdminDashboard />
+      
       case 'doctor':
         return <DoctorDashboard />
+      
       case 'patient':
-        return <div>Patient Dashboard</div>
+        return <PatientDashboard />
+      
       case 'nurse':
-        return <div>Nurse Dashboard</div>
+        return <NurseDashboard />
+      
       case 'receptionist':
-        return <div>Receptionist Dashboard</div>
-      default:
+        return <ReceptionistDashboard />
+      
+      case 'pharmacist':
+        // You can create a PharmacistDashboard or use a default
         return <AdminDashboard />
+      
+      default:
+        return (
+          <div className="flex items-center justify-center min-h-screen">
+            <div className="text-center">
+              <p className="text-red-500 font-semibold mb-2">Invalid User Role</p>
+              <p className="text-gray-500">Role: {user.role}</p>
+              <p className="text-gray-400 text-sm mt-2">Please contact administrator</p>
+            </div>
+          </div>
+        )
     }
   }
 
-  return renderDashboard()
+  return (
+    <div>
+      {renderDashboard()}
+    </div>
+  )
 }
 
 export default Dashboard

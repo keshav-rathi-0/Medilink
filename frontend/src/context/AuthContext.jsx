@@ -27,10 +27,13 @@ export const AuthProvider = ({ children }) => {
       const token = localStorage.getItem('token')
       if (token) {
         const userData = await authService.verifyToken()
+        console.log('User Data from Backend:', userData) // Debug log
         setUser(userData)
       }
     } catch (error) {
+      console.error('Auth verification failed:', error)
       localStorage.removeItem('token')
+      setUser(null)
     } finally {
       setLoading(false)
     }
@@ -39,12 +42,22 @@ export const AuthProvider = ({ children }) => {
   const login = async (credentials) => {
     try {
       const response = await authService.login(credentials)
+      console.log('Login Response:', response) // Debug log
+      
       localStorage.setItem('token', response.token)
-      setUser(response.user)
-      toast.success('Login successful!')
+      
+      // Ensure user object has role property
+      const userData = response.user || response.data || response
+      if (!userData.role) {
+        throw new Error('User role not found in response')
+      }
+      
+      setUser(userData)
+      toast.success(`Welcome back, ${userData.name || 'User'}!`)
       navigate('/dashboard')
       return response
     } catch (error) {
+      console.error('Login error:', error)
       toast.error(error.response?.data?.message || 'Login failed')
       throw error
     }

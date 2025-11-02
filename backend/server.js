@@ -18,6 +18,8 @@ const prescriptionRoutes = require('./routes/prescriptionRoutes');
 const billingRoutes = require('./routes/billingRoutes');
 const staffRoutes = require('./routes/staffRoutes');
 const reportRoutes = require('./routes/reportRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
+
 
 const app = express();
 
@@ -51,6 +53,8 @@ app.use('/api/prescriptions', prescriptionRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/dashboards', dashboardRoutes);
+
 
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK' });
