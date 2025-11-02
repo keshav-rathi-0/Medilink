@@ -15,6 +15,11 @@ const Appointment = require('./models/Appointment');
 const Prescription = require('./models/Prescription');
 const Billing = require('./models/Billing');
 
+function generatePatientId() {
+  const timestamp = Date.now().toString().slice(-6);
+  const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+  return `PAT${timestamp}${random}`;
+}
 // Sample data
 const sampleData = {
   users: [
@@ -177,6 +182,7 @@ async function populateDatabase() {
     console.log('\n🤒 Creating patient profile...');
     const patient = await Patient.create({
       userId: users[2]._id, // John Doe
+      patientId: generatePatientId(),
       bloodGroup: "O+",
       emergencyContact: {
         name: "Jane Doe",

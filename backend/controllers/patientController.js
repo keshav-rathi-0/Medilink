@@ -1,99 +1,392 @@
 const Patient = require('../models/Patient');
 const User = require('../models/User');
+const Appointment = require('../models/Appointment');
 const asyncHandler = require('../utils/asyncHandler');
 
+// Helper function to generate unique patient ID
+const generatePatientId = async () => {
+  const timestamp = Date.now().toString().slice(-6);
+  const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+  const patientId = `PAT${timestamp}${random}`;
+  
+  const exists = await Patient.findOne({ patientId });
+  if (exists) {
+    return generatePatientId();
+  }
+  
+  return patientId;
+};
+
+// Get users with role "Patient" who don't have a patient profile yet
+exports.getAvailablePatientUsers = asyncHandler(async (req, res) => {
+  // Get all patient users
+  const patientUsers = await User.find({ role: 'Patient' }).select('_id name email phone dateOfBirth gender');
+  
+  // Get all existing patient profiles
+  const existingPatients = await Patient.find().select('userId');
+  const existingUserIds = existingPatients.map(p => p.userId.toString());
+  
+  // Filter out users who already have patient profiles
+  const availableUsers = patientUsers.filter(user => !existingUserIds.includes(user._id.toString()));
+  
+  res.status(200).json({
+    success: true,
+    count: availableUsers.length,
+    data: availableUsers
+  });
+});
+
+// Create patient profile
 exports.createPatient = asyncHandler(async (req, res) => {
   const { userId, bloodGroup, emergencyContact, allergies, insuranceInfo } = req.body;
 
+  // Validate user exists and is a patient
   const user = await User.findById(userId);
   if (!user || user.role !== 'Patient') {
-    return res.status(400).json({ message: 'Invalid user or not a patient' });
+    return res.status(400).json({ 
+      success: false,
+      message: 'Invalid user or not a patient' 
+    });
   }
 
+  // Check if patient profile already exists
+  const existingPatient = await Patient.findOne({ userId });
+  if (existingPatient) {
+    return res.status(400).json({ 
+      success: false,
+      message: 'Patient profile already exists for this user' 
+    });
+  }
+
+  // Generate unique patient ID
+  const patientId = await generatePatientId();
+
+  // Create patient
   const patient = await Patient.create({
-    userId, bloodGroup, emergencyContact, allergies, insuranceInfo
+    userId,
+    patientId,
+    bloodGroup,
+    emergencyContact,
+    allergies: allergies || [],
+    insuranceInfo: insuranceInfo || {}
   });
 
-  res.status(201).json({ success: true, data: patient });
+  await patient.populate('userId', 'name email phone address dateOfBirth gender');
+
+  res.status(201).json({ 
+    success: true, 
+    message: 'Patient profile created successfully',
+    data: patient 
+  });
 });
 
+// Get all patients
 exports.getPatients = asyncHandler(async (req, res) => {
-  const { search, bloodGroup } = req.query;
+  const { search, bloodGroup, page = 1, limit = 10 } = req.query;
   
   let query = {};
-  if (bloodGroup) query.bloodGroup = bloodGroup;
+  
+  if (bloodGroup) {
+    query.bloodGroup = bloodGroup;
+  }
   
   if (search) {
+    const users = await User.find({
+      $or: [
+        { name: new RegExp(search, 'i') },
+        { email: new RegExp(search, 'i') },
+        { phone: new RegExp(search, 'i') }
+      ]
+    }).select('_id');
+    
+    const userIds = users.map(user => user._id);
+    
     query.$or = [
-      { patientId: new RegExp(search, 'i') }
+      { patientId: new RegExp(search, 'i') },
+      { userId: { $in: userIds } }
     ];
   }
 
-  const patients = await Patient.find(query).populate('userId', 'name email phone address');
+  const skip = (page - 1) * limit;
   
-  res.status(200).json({ success: true, count: patients.length, data: patients });
+  const patients = await Patient.find(query)
+    .populate('userId', 'name email phone address dateOfBirth gender')
+    .limit(parseInt(limit))
+    .skip(skip)
+    .sort({ createdAt: -1 });
+  
+  const total = await Patient.countDocuments(query);
+
+  res.status(200).json({ 
+    success: true, 
+    count: patients.length,
+    total,
+    page: parseInt(page),
+    pages: Math.ceil(total / limit),
+    data: patients 
+  });
 });
 
+// Get single patient
 exports.getPatient = asyncHandler(async (req, res) => {
   const patient = await Patient.findById(req.params.id)
     .populate('userId', 'name email phone address dateOfBirth gender');
   
   if (!patient) {
-    return res.status(404).json({ message: 'Patient not found' });
+    return res.status(404).json({ 
+      success: false,
+      message: 'Patient not found' 
+    });
   }
 
-  res.status(200).json({ success: true, data: patient });
+  res.status(200).json({ 
+    success: true, 
+    data: patient 
+  });
 });
 
+// Get patient medical records (history + lab reports)
+exports.getPatientMedicalRecords = asyncHandler(async (req, res) => {
+  const patient = await Patient.findById(req.params.id)
+    .populate('userId', 'name email phone dateOfBirth gender')
+    .select('patientId medicalHistory labReports allergies currentMedications');
+  
+  if (!patient) {
+    return res.status(404).json({ 
+      success: false,
+      message: 'Patient not found' 
+    });
+  }
+
+  res.status(200).json({ 
+    success: true, 
+    data: patient 
+  });
+});
+
+// Get patient appointments
+exports.getPatientAppointments = asyncHandler(async (req, res) => {
+  const patient = await Patient.findById(req.params.id);
+  
+  if (!patient) {
+    return res.status(404).json({ 
+      success: false,
+      message: 'Patient not found' 
+    });
+  }
+
+  const appointments = await Appointment.find({ patient: req.params.id })
+    .populate('doctor', 'name specialization')
+    .populate('patient', 'patientId')
+    .sort({ appointmentDate: -1 });
+
+  res.status(200).json({ 
+    success: true, 
+    count: appointments.length,
+    data: appointments 
+  });
+});
+
+// Update patient
 exports.updatePatient = asyncHandler(async (req, res) => {
   let patient = await Patient.findById(req.params.id);
   
   if (!patient) {
-    return res.status(404).json({ message: 'Patient not found' });
+    return res.status(404).json({ 
+      success: false,
+      message: 'Patient not found' 
+    });
   }
 
-  patient = await Patient.findByIdAndUpdate(req.params.id, req.body, {
-    new: true,
-    runValidators: true
-  });
+  delete req.body.userId;
+  delete req.body.patientId;
 
-  res.status(200).json({ success: true, data: patient });
+  patient = await Patient.findByIdAndUpdate(
+    req.params.id, 
+    req.body, 
+    {
+      new: true,
+      runValidators: true
+    }
+  ).populate('userId', 'name email phone address dateOfBirth gender');
+
+  res.status(200).json({ 
+    success: true, 
+    message: 'Patient updated successfully',
+    data: patient 
+  });
 });
 
+// Delete patient
 exports.deletePatient = asyncHandler(async (req, res) => {
   const patient = await Patient.findById(req.params.id);
   
   if (!patient) {
-    return res.status(404).json({ message: 'Patient not found' });
+    return res.status(404).json({ 
+      success: false,
+      message: 'Patient not found' 
+    });
   }
 
   await patient.deleteOne();
-  res.status(200).json({ success: true, message: 'Patient deleted' });
+  
+  res.status(200).json({ 
+    success: true, 
+    message: 'Patient deleted successfully' 
+  });
 });
 
+// Add medical history
 exports.addMedicalHistory = asyncHandler(async (req, res) => {
   const patient = await Patient.findById(req.params.id);
   
   if (!patient) {
-    return res.status(404).json({ message: 'Patient not found' });
+    return res.status(404).json({ 
+      success: false,
+      message: 'Patient not found' 
+    });
+  }
+
+  const { condition, diagnosedDate, status } = req.body;
+  if (!condition || !diagnosedDate || !status) {
+    return res.status(400).json({
+      success: false,
+      message: 'Condition, diagnosed date, and status are required'
+    });
   }
 
   patient.medicalHistory.push(req.body);
   await patient.save();
 
-  res.status(200).json({ success: true, data: patient });
+  res.status(200).json({ 
+    success: true,
+    message: 'Medical history added successfully',
+    data: patient 
+  });
 });
 
+// Update medical history
+exports.updateMedicalHistory = asyncHandler(async (req, res) => {
+  const { id, historyId } = req.params;
+  
+  const patient = await Patient.findById(id);
+  
+  if (!patient) {
+    return res.status(404).json({ 
+      success: false,
+      message: 'Patient not found' 
+    });
+  }
+
+  const historyItem = patient.medicalHistory.id(historyId);
+  
+  if (!historyItem) {
+    return res.status(404).json({
+      success: false,
+      message: 'Medical history item not found'
+    });
+  }
+
+  Object.assign(historyItem, req.body);
+  await patient.save();
+
+  res.status(200).json({
+    success: true,
+    message: 'Medical history updated successfully',
+    data: patient
+  });
+});
+
+// Delete medical history
+exports.deleteMedicalHistory = asyncHandler(async (req, res) => {
+  const { id, historyId } = req.params;
+  
+  const patient = await Patient.findById(id);
+  
+  if (!patient) {
+    return res.status(404).json({ 
+      success: false,
+      message: 'Patient not found' 
+    });
+  }
+
+  patient.medicalHistory.pull(historyId);
+  await patient.save();
+
+  res.status(200).json({
+    success: true,
+    message: 'Medical history deleted successfully',
+    data: patient
+  });
+});
+
+// Add lab report
 exports.addLabReport = asyncHandler(async (req, res) => {
   const patient = await Patient.findById(req.params.id);
   
   if (!patient) {
-    return res.status(404).json({ message: 'Patient not found' });
+    return res.status(404).json({ 
+      success: false,
+      message: 'Patient not found' 
+    });
+  }
+
+  const { testName, testDate, results } = req.body;
+  if (!testName || !testDate || !results) {
+    return res.status(400).json({
+      success: false,
+      message: 'Test name, test date, and results are required'
+    });
   }
 
   patient.labReports.push(req.body);
   await patient.save();
 
-  res.status(200).json({ success: true, data: patient });
+  res.status(200).json({ 
+    success: true,
+    message: 'Lab report added successfully',
+    data: patient 
+  });
 });
 
+// Get patient stats
+exports.getPatientStats = asyncHandler(async (req, res) => {
+  const patientId = req.params.id;
+  
+  const patient = await Patient.findById(patientId)
+    .populate('userId', 'name email');
+  
+  if (!patient) {
+    return res.status(404).json({
+      success: false,
+      message: 'Patient not found'
+    });
+  }
+
+  const appointmentCount = await Appointment.countDocuments({ patient: patientId });
+
+  const Prescription = require('../models/Prescription');
+  const prescriptionCount = await Prescription.countDocuments({ patient: patientId });
+
+  const Billing = require('../models/Billing');
+  const billings = await Billing.find({ patient: patientId });
+  const totalBilled = billings.reduce((sum, bill) => sum + bill.totalAmount, 0);
+  const totalPaid = billings.reduce((sum, bill) => sum + bill.amountPaid, 0);
+
+  res.status(200).json({
+    success: true,
+    data: {
+      patient,
+      stats: {
+        totalAppointments: appointmentCount,
+        totalPrescriptions: prescriptionCount,
+        totalBilled,
+        totalPaid,
+        outstandingBalance: totalBilled - totalPaid,
+        medicalHistoryCount: patient.medicalHistory.length,
+        labReportsCount: patient.labReports.length,
+        allergiesCount: patient.allergies.length
+      }
+    }
+  });
+});

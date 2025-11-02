@@ -4,9 +4,14 @@ const patientSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
+    required: true,
+    unique: true
+  },
+  patientId: { 
+    type: String, 
+    unique: true, 
     required: true 
   },
-  patientId: { type: String, unique: true, required: true },
   bloodGroup: { 
     type: String, 
     enum: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] 
@@ -17,23 +22,33 @@ const patientSchema = new mongoose.Schema({
     relation: String
   },
   medicalHistory: [{
-    condition: String,
-    diagnosedDate: Date,
-    status: { type: String, enum: ['Active', 'Resolved', 'Chronic'] },
-    notes: String
+    condition: { type: String, required: true },
+    diagnosedDate: { type: Date, required: true },
+    status: { 
+      type: String, 
+      enum: ['Active', 'Resolved', 'Chronic'],
+      required: true
+    },
+    notes: String,
+    addedAt: { type: Date, default: Date.now }
   }],
   allergies: [String],
   currentMedications: [{
     medicine: String,
     dosage: String,
     frequency: String,
-    startDate: Date
+    startDate: Date,
+    endDate: Date,
+    prescribedBy: String
   }],
   labReports: [{
-    testName: String,
-    date: Date,
-    results: String,
-    fileUrl: String
+    testName: { type: String, required: true },
+    testDate: { type: Date, required: true },
+    results: { type: String, required: true },
+    fileUrl: String,
+    normalRange: String,
+    remarks: String,
+    addedAt: { type: Date, default: Date.now }
   }],
   imagingData: [{
     type: String,
@@ -44,23 +59,35 @@ const patientSchema = new mongoose.Schema({
   insuranceInfo: {
     provider: String,
     policyNumber: String,
-    validUntil: Date
+    validUntil: Date,
+    coverageAmount: Number
   },
   admissionHistory: [{
     admissionDate: Date,
     dischargeDate: Date,
     reason: String,
-    ward: String
+    ward: String,
+    attendingDoctor: String
   }],
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { 
+    type: Date, 
+    default: Date.now 
+  },
+  updatedAt: { 
+    type: Date, 
+    default: Date.now 
+  }
 });
 
-patientSchema.pre('save', async function(next) {
-  if (!this.patientId) {
-    const count = await mongoose.model('Patient').countDocuments();
-    this.patientId = `PT${String(count + 1).padStart(6, '0')}`;
-  }
+// Update timestamp on save
+patientSchema.pre('save', function(next) {
+  this.updatedAt = Date.now();
   next();
 });
+
+// Indexes for better query performance
+patientSchema.index({ userId: 1 });
+patientSchema.index({ patientId: 1 });
+patientSchema.index({ bloodGroup: 1 });
 
 module.exports = mongoose.model('Patient', patientSchema);
