@@ -1,5 +1,4 @@
 const Medicine = require('../models/Medicine');
-const Prescription = require('../models/Prescription');
 const asyncHandler = require('../utils/asyncHandler');
 
 // @desc    Create new medicine
@@ -19,7 +18,7 @@ exports.createMedicine = asyncHandler(async (req, res) => {
 // @route   GET /api/medicines
 // @access  Private
 exports.getMedicines = asyncHandler(async (req, res) => {
-  const { category, search, lowStock, expiringSoon, page = 1, limit = 10 } = req.query;
+  const { category, search, lowStock, expiringSoon, page = 1, limit = 100 } = req.query;
   
   let query = { isActive: true };
   
@@ -28,12 +27,13 @@ exports.getMedicines = asyncHandler(async (req, res) => {
     query.category = category;
   }
   
-  // Search by name or generic name
+  // Search by name, generic name, or medicine ID
   if (search) {
     query.$or = [
       { name: new RegExp(search, 'i') },
       { genericName: new RegExp(search, 'i') },
-      { manufacturer: new RegExp(search, 'i') }
+      { manufacturer: new RegExp(search, 'i') },
+      { medicineId: new RegExp(search, 'i') }
     ];
   }
   
@@ -42,7 +42,7 @@ exports.getMedicines = asyncHandler(async (req, res) => {
     query.$expr = { $lte: ['$stockQuantity', '$reorderLevel'] };
   }
   
-  // Filter expiring soon medicines
+  // Filter expiring soon medicines (within 3 months)
   if (expiringSoon === 'true') {
     const threeMonthsFromNow = new Date();
     threeMonthsFromNow.setMonth(threeMonthsFromNow.getMonth() + 3);
@@ -101,6 +101,9 @@ exports.updateMedicine = asyncHandler(async (req, res) => {
     });
   }
 
+  // Don't allow updating medicineId
+  delete req.body.medicineId;
+
   medicine = await Medicine.findByIdAndUpdate(req.params.id, req.body, {
     new: true,
     runValidators: true
@@ -126,12 +129,11 @@ exports.deleteMedicine = asyncHandler(async (req, res) => {
     });
   }
 
-  medicine.isActive = false;
-  await medicine.save();
+  await medicine.deleteOne();
 
   res.status(200).json({
     success: true,
-    message: 'Medicine deactivated successfully'
+    message: 'Medicine deleted successfully'
   });
 });
 
@@ -192,7 +194,7 @@ exports.updateStock = asyncHandler(async (req, res) => {
 });
 
 // @desc    Get low stock medicines alert
-// @route   GET /api/medicines/low-stock
+// @route   GET /api/medicines/alerts/low-stock
 // @access  Private (Admin, Pharmacist)
 exports.getLowStockAlert = asyncHandler(async (req, res) => {
   const medicines = await Medicine.find({
@@ -200,7 +202,6 @@ exports.getLowStockAlert = asyncHandler(async (req, res) => {
     isActive: true
   }).sort('stockQuantity');
 
-  // Calculate statistics
   const stats = {
     totalLowStock: medicines.length,
     criticalStock: medicines.filter(m => m.stockQuantity === 0).length,
@@ -216,7 +217,7 @@ exports.getLowStockAlert = asyncHandler(async (req, res) => {
 });
 
 // @desc    Get expiring medicines
-// @route   GET /api/medicines/expiring
+// @route   GET /api/medicines/alerts/expiring
 // @access  Private (Admin, Pharmacist)
 exports.getExpiringMedicines = asyncHandler(async (req, res) => {
   const { months = 3 } = req.query;
@@ -233,7 +234,6 @@ exports.getExpiringMedicines = asyncHandler(async (req, res) => {
     isActive: true
   }).sort('expiryDate');
 
-  // Categorize by urgency
   const oneMonth = new Date();
   oneMonth.setMonth(oneMonth.getMonth() + 1);
   
@@ -252,7 +252,7 @@ exports.getExpiringMedicines = asyncHandler(async (req, res) => {
 });
 
 // @desc    Get expired medicines
-// @route   GET /api/medicines/expired
+// @route   GET /api/medicines/alerts/expired
 // @access  Private (Admin, Pharmacist)
 exports.getExpiredMedicines = asyncHandler(async (req, res) => {
   const medicines = await Medicine.find({
@@ -286,6 +286,7 @@ exports.getMedicineCategories = asyncHandler(async (req, res) => {
 // @access  Private (Admin, Pharmacist)
 exports.getMedicineStats = asyncHandler(async (req, res) => {
   const totalMedicines = await Medicine.countDocuments({ isActive: true });
+  
   const lowStock = await Medicine.countDocuments({
     $expr: { $lte: ['$stockQuantity', '$reorderLevel'] },
     isActive: true
@@ -298,6 +299,11 @@ exports.getMedicineStats = asyncHandler(async (req, res) => {
     isActive: true
   });
 
+  const outOfStock = await Medicine.countDocuments({
+    stockQuantity: 0,
+    isActive: true
+  });
+
   const totalStockValue = await Medicine.aggregate([
     { $match: { isActive: true } },
     { $group: { _id: null, total: { $sum: { $multiply: ['$stockQuantity', '$unitPrice'] } } } }
@@ -305,7 +311,8 @@ exports.getMedicineStats = asyncHandler(async (req, res) => {
 
   const categoryDistribution = await Medicine.aggregate([
     { $match: { isActive: true } },
-    { $group: { _id: '$category', count: { $sum: 1 }, totalStock: { $sum: '$stockQuantity' } } }
+    { $group: { _id: '$category', count: { $sum: 1 }, totalStock: { $sum: '$stockQuantity' } } },
+    { $sort: { count: -1 } }
   ]);
 
   res.status(200).json({
@@ -314,6 +321,7 @@ exports.getMedicineStats = asyncHandler(async (req, res) => {
       totalMedicines,
       lowStock,
       expiringSoon,
+      outOfStock,
       totalStockValue: totalStockValue[0]?.total || 0,
       categoryDistribution
     }

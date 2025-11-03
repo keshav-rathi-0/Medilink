@@ -1,5 +1,8 @@
 const express = require('express');
+const router = express.Router();
 const { body } = require('express-validator');
+const { validate } = require('../middleware/validator');
+const { protect, authorize } = require('../middleware/auth');
 const {
   createMedicine,
   getMedicines,
@@ -9,42 +12,45 @@ const {
   updateStock,
   getLowStockAlert,
   getExpiringMedicines,
+  getExpiredMedicines,
+  getMedicineCategories,
+  getMedicineStats
 } = require('../controllers/medicineController');
-const { validate } = require('../middleware/validator');
-const { protect, authorize } = require('../middleware/auth');
 
-const router = express.Router();
-
-// ✅ All routes below require authentication
 router.use(protect);
 
-// 📦 Get all medicines / Create a new medicine
-router
-  .route('/')
+// Stats and alerts routes (must be before /:id)
+router.get('/stats', authorize('Admin', 'Pharmacist', 'Doctor'), getMedicineStats);
+router.get('/categories', getMedicineCategories);
+router.get('/alerts/low-stock', authorize('Admin', 'Pharmacist'), getLowStockAlert);
+router.get('/alerts/expiring', authorize('Admin', 'Pharmacist'), getExpiringMedicines);
+router.get('/alerts/expired', authorize('Admin', 'Pharmacist'), getExpiredMedicines);
+
+// Main medicine routes
+router.route('/')
   .get(getMedicines)
-  .post(
-    authorize('Admin', 'Pharmacist'),
-    [
-      body('name').notEmpty().withMessage('Medicine name is required'),
-      body('manufacturer').notEmpty().withMessage('Manufacturer is required'),
-      body('unitPrice').isNumeric().withMessage('Unit price must be numeric'),
-      validate,
-    ],
-    createMedicine
-  );
+  .post(authorize('Admin', 'Pharmacist'), [
+    body('name').notEmpty().withMessage('Medicine name is required'),
+    body('genericName').notEmpty().withMessage('Generic name is required'),
+    body('manufacturer').notEmpty().withMessage('Manufacturer is required'),
+    body('category').notEmpty().withMessage('Category is required'),
+    body('unitPrice').isFloat({ min: 0 }).withMessage('Valid unit price is required'),
+    body('stockQuantity').isInt({ min: 0 }).withMessage('Valid stock quantity is required'),
+    body('reorderLevel').isInt({ min: 0 }).withMessage('Valid reorder level is required'),
+    body('expiryDate').isISO8601().withMessage('Valid expiry date is required'),
+    validate
+  ], createMedicine);
 
-// ⚠️ Alerts for low stock and expiring medicines
-router.get('/low-stock', authorize('Admin', 'Pharmacist'), getLowStockAlert);
-router.get('/expiring', authorize('Admin', 'Pharmacist'), getExpiringMedicines);
-
-// 🧾 Get / Update / Delete a specific medicine
-router
-  .route('/:id')
+router.route('/:id')
   .get(getMedicine)
   .put(authorize('Admin', 'Pharmacist'), updateMedicine)
   .delete(authorize('Admin'), deleteMedicine);
 
-// 🔄 Update stock for a specific medicine
-router.put('/:id/stock', authorize('Admin', 'Pharmacist'), updateStock);
+// Stock management
+router.put('/:id/stock', authorize('Admin', 'Pharmacist'), [
+  body('quantity').isInt({ min: 1 }).withMessage('Valid quantity is required'),
+  body('operation').isIn(['add', 'reduce', 'set']).withMessage('Valid operation is required'),
+  validate
+], updateStock);
 
 module.exports = router;
