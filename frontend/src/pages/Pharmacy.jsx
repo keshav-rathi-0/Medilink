@@ -56,7 +56,7 @@ const Pharmacy = () => {
     try {
       const response = await api.get('/medicines')
       console.log('💊 Medicines API Response:', response.data)
-      const medicinesData = response.data.data || []
+      const medicinesData = response.data || []
       console.log('💊 Total medicines:', medicinesData.length)
       if (medicinesData.length > 0) {
         console.log('💊 First medicine sample:', medicinesData[0])

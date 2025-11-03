@@ -1,6 +1,58 @@
 const Billing = require('../models/Billing');
 const Patient = require('../models/Patient');
+const User = require('../models/User');
 const asyncHandler = require('../utils/asyncHandler');
+
+// Helper function to generate unique patient ID
+const generatePatientId = async () => {
+  const timestamp = Date.now().toString().slice(-6);
+  const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+  const patientId = `PAT${timestamp}${random}`;
+  const exists = await Patient.findOne({ patientId });
+  if (exists) {
+    return generatePatientId();
+  }
+  return patientId;
+};
+
+// @desc    Get all users with role "Patient" for billing dropdown
+// @route   GET /api/billing/patient-users
+// @access  Private (Admin, Receptionist)
+exports.getPatientUsers = asyncHandler(async (req, res) => {
+  // Get all users with role "Patient" - direct from User table
+  const patientUsers = await User.find({ role: 'Patient' })
+    .select('_id name email phone dateOfBirth gender address')
+    .sort('name');
+
+  // Get their patient profiles to show patient IDs
+  const patients = await Patient.find().select('userId patientId');
+  
+  // Create a map of userId to patientId
+  const patientIdMap = {};
+  patients.forEach(patient => {
+    if (patient.userId) {
+      patientIdMap[patient.userId.toString()] = patient.patientId;
+    }
+  });
+
+  // Enhance user data with patientId if available
+  const enhancedUsers = patientUsers.map(user => ({
+    _id: user._id,
+    name: user.name,
+    email: user.email,
+    phone: user.phone,
+    dateOfBirth: user.dateOfBirth,
+    gender: user.gender,
+    address: user.address,
+    patientId: patientIdMap[user._id.toString()] || 'N/A'
+  }));
+
+  res.status(200).json({
+    success: true,
+    count: enhancedUsers.length,
+     enhancedUsers
+  });
+});
 
 // @desc    Create new bill
 // @route   POST /api/billing
@@ -8,12 +60,25 @@ const asyncHandler = require('../utils/asyncHandler');
 exports.createBill = asyncHandler(async (req, res) => {
   const { patient, items, discount, tax, notes, paymentMethod } = req.body;
 
-  // Validate patient exists
-  const patientExists = await Patient.findById(patient);
-  if (!patientExists) {
+  // Patient parameter contains User ID
+  const user = await User.findById(patient);
+  if (!user || user.role !== 'Patient') {
     return res.status(404).json({
       success: false,
-      message: 'Patient not found'
+      message: 'User not found or not a patient'
+    });
+  }
+
+  // Check if patient profile exists, if not create one automatically
+  let patientProfile = await Patient.findOne({ userId: patient });
+  
+  if (!patientProfile) {
+    // Auto-create patient profile
+    const patientId = await generatePatientId();
+    
+    patientProfile = await Patient.create({
+      userId: patient,
+      patientId
     });
   }
 
@@ -35,7 +100,7 @@ exports.createBill = asyncHandler(async (req, res) => {
   }));
 
   const bill = await Billing.create({
-    patient,
+    patient: patientProfile._id,
     items: billItems,
     subtotal,
     discount: discountAmount,
@@ -61,7 +126,7 @@ exports.createBill = asyncHandler(async (req, res) => {
   res.status(201).json({
     success: true,
     message: 'Bill created successfully',
-    data: bill
+     bill
   });
 });
 
@@ -70,17 +135,17 @@ exports.createBill = asyncHandler(async (req, res) => {
 // @access  Private (Admin, Receptionist)
 exports.getBills = asyncHandler(async (req, res) => {
   const { patient, paymentStatus, startDate, endDate, search, page = 1, limit = 10 } = req.query;
-  
+
   let query = {};
-  
+
   if (patient) {
     query.patient = patient;
   }
-  
+
   if (paymentStatus) {
     query.paymentStatus = paymentStatus;
   }
-  
+
   if (startDate && endDate) {
     query.billDate = {
       $gte: new Date(startDate),
@@ -88,7 +153,6 @@ exports.getBills = asyncHandler(async (req, res) => {
     };
   }
 
-  // Search by bill number
   if (search) {
     query.$or = [
       { billNumber: new RegExp(search, 'i') }
@@ -102,13 +166,13 @@ exports.getBills = asyncHandler(async (req, res) => {
       path: 'patient',
       populate: {
         path: 'userId',
-        select: 'name email phone dateOfBirth gender'
+        select: 'name email phone address dateOfBirth gender'
       }
     })
     .populate('generatedBy', 'name role')
-    .sort('-billDate')
+    .limit(parseInt(limit))
     .skip(skip)
-    .limit(parseInt(limit));
+    .sort('-billDate');
 
   const total = await Billing.countDocuments(query);
 
@@ -118,7 +182,7 @@ exports.getBills = asyncHandler(async (req, res) => {
     total,
     page: parseInt(page),
     pages: Math.ceil(total / parseInt(limit)),
-    data: bills
+     bills
   });
 });
 
@@ -129,10 +193,10 @@ exports.getBill = asyncHandler(async (req, res) => {
   const bill = await Billing.findById(req.params.id)
     .populate({
       path: 'patient',
-      populate: { path: 'userId', select: 'name email phone address' }
+      populate: { path: 'userId', select: 'name email phone address dateOfBirth gender' }
     })
     .populate('generatedBy', 'name role');
-  
+
   if (!bill) {
     return res.status(404).json({
       success: false,
@@ -151,7 +215,7 @@ exports.getBill = asyncHandler(async (req, res) => {
 // @access  Private (Admin, Receptionist)
 exports.recordPayment = asyncHandler(async (req, res) => {
   const { amount, paymentMethod, transactionId, notes } = req.body;
-  
+
   if (!amount || amount <= 0) {
     return res.status(400).json({
       success: false,
@@ -167,7 +231,7 @@ exports.recordPayment = asyncHandler(async (req, res) => {
   }
 
   const bill = await Billing.findById(req.params.id);
-  
+
   if (!bill) {
     return res.status(404).json({
       success: false,
@@ -175,7 +239,6 @@ exports.recordPayment = asyncHandler(async (req, res) => {
     });
   }
 
-  // Check if payment amount exceeds balance
   if (amount > bill.balance) {
     return res.status(400).json({
       success: false,
@@ -187,11 +250,10 @@ exports.recordPayment = asyncHandler(async (req, res) => {
   bill.balance = bill.totalAmount - bill.amountPaid;
   bill.paymentMethod = paymentMethod;
 
-  // Add payment record
   if (!bill.payments) {
     bill.payments = [];
   }
-  
+
   bill.payments.push({
     amount: parseFloat(amount),
     paymentMethod,
@@ -200,7 +262,6 @@ exports.recordPayment = asyncHandler(async (req, res) => {
     paymentDate: new Date()
   });
 
-  // Update payment status
   if (bill.balance === 0) {
     bill.paymentStatus = 'Paid';
   } else if (bill.amountPaid > 0) {
@@ -210,14 +271,14 @@ exports.recordPayment = asyncHandler(async (req, res) => {
   await bill.save();
 
   await bill.populate([
-    { path: 'patient', populate: { path: 'userId', select: 'name email phone' } },
+    { path: 'patient', populate: { path: 'userId', select: 'name email phone address dateOfBirth gender' } },
     { path: 'generatedBy', select: 'name role' }
   ]);
 
   res.status(200).json({
     success: true,
     message: 'Payment recorded successfully',
-    data: bill
+     bill
   });
 });
 
@@ -226,7 +287,7 @@ exports.recordPayment = asyncHandler(async (req, res) => {
 // @access  Private (Admin, Receptionist)
 exports.processInsuranceClaim = asyncHandler(async (req, res) => {
   const { claimNumber, provider, amountClaimed } = req.body;
-  
+
   if (!claimNumber || !provider || !amountClaimed) {
     return res.status(400).json({
       success: false,
@@ -235,7 +296,7 @@ exports.processInsuranceClaim = asyncHandler(async (req, res) => {
   }
 
   const bill = await Billing.findById(req.params.id);
-  
+
   if (!bill) {
     return res.status(404).json({
       success: false,
@@ -254,14 +315,14 @@ exports.processInsuranceClaim = asyncHandler(async (req, res) => {
   await bill.save();
 
   await bill.populate([
-    { path: 'patient', populate: { path: 'userId', select: 'name email phone' } },
+    { path: 'patient', populate: { path: 'userId', select: 'name email phone address dateOfBirth gender' } },
     { path: 'generatedBy', select: 'name role' }
   ]);
 
   res.status(200).json({
     success: true,
     message: 'Insurance claim submitted successfully',
-    data: bill
+     bill
   });
 });
 
@@ -270,7 +331,7 @@ exports.processInsuranceClaim = asyncHandler(async (req, res) => {
 // @access  Private (Admin)
 exports.updateInsuranceClaim = asyncHandler(async (req, res) => {
   const { status, approvedAmount, rejectionReason } = req.body;
-  
+
   if (!status) {
     return res.status(400).json({
       success: false,
@@ -279,7 +340,7 @@ exports.updateInsuranceClaim = asyncHandler(async (req, res) => {
   }
 
   const bill = await Billing.findById(req.params.id);
-  
+
   if (!bill || !bill.insuranceClaim) {
     return res.status(404).json({
       success: false,
@@ -289,26 +350,25 @@ exports.updateInsuranceClaim = asyncHandler(async (req, res) => {
 
   bill.insuranceClaim.status = status;
   bill.insuranceClaim.processedDate = new Date();
-  
+
   if (status === 'Approved' || status === 'Partially-Approved') {
     const amount = approvedAmount || bill.insuranceClaim.amountClaimed;
     bill.insuranceClaim.approvedAmount = amount;
-    
-    // Record as payment
+
     bill.amountPaid += parseFloat(amount);
     bill.balance = bill.totalAmount - bill.amountPaid;
-    
+
     if (!bill.payments) {
       bill.payments = [];
     }
-    
+
     bill.payments.push({
       amount: parseFloat(amount),
       paymentMethod: 'Insurance',
       notes: `Insurance claim approved - ${bill.insuranceClaim.claimNumber}`,
       paymentDate: new Date()
     });
-    
+
     if (bill.balance === 0) {
       bill.paymentStatus = 'Paid';
     } else if (bill.amountPaid > 0) {
@@ -321,14 +381,14 @@ exports.updateInsuranceClaim = asyncHandler(async (req, res) => {
   await bill.save();
 
   await bill.populate([
-    { path: 'patient', populate: { path: 'userId', select: 'name email phone' } },
+    { path: 'patient', populate: { path: 'userId', select: 'name email phone address dateOfBirth gender' } },
     { path: 'generatedBy', select: 'name role' }
   ]);
 
   res.status(200).json({
     success: true,
     message: `Insurance claim ${status.toLowerCase()} successfully`,
-    data: bill
+     bill
   });
 });
 
@@ -337,7 +397,7 @@ exports.updateInsuranceClaim = asyncHandler(async (req, res) => {
 // @access  Private (Admin, Receptionist)
 exports.getBillingStats = asyncHandler(async (req, res) => {
   const { startDate, endDate } = req.query;
-  
+
   let dateQuery = {};
   if (startDate && endDate) {
     dateQuery.billDate = {
@@ -347,7 +407,7 @@ exports.getBillingStats = asyncHandler(async (req, res) => {
   }
 
   const totalBills = await Billing.countDocuments(dateQuery);
-  
+
   const totalRevenue = await Billing.aggregate([
     { $match: dateQuery },
     { $group: { _id: null, total: { $sum: '$totalAmount' } } }
@@ -391,7 +451,7 @@ exports.getBillingStats = asyncHandler(async (req, res) => {
 // @access  Private (Admin)
 exports.deleteBill = asyncHandler(async (req, res) => {
   const bill = await Billing.findById(req.params.id);
-  
+
   if (!bill) {
     return res.status(404).json({
       success: false,
@@ -399,7 +459,6 @@ exports.deleteBill = asyncHandler(async (req, res) => {
     });
   }
 
-  // Don't allow deletion if payment has been made
   if (bill.amountPaid > 0) {
     return res.status(400).json({
       success: false,
@@ -408,7 +467,7 @@ exports.deleteBill = asyncHandler(async (req, res) => {
   }
 
   await bill.deleteOne();
-  
+
   res.status(200).json({
     success: true,
     message: 'Bill deleted successfully'

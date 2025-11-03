@@ -131,7 +131,6 @@ billingSchema.pre('save', async function(next) {
     const count = await this.constructor.countDocuments();
     this.billNumber = `BILL-${year}${month}-${String(count + 1).padStart(6, '0')}`;
   }
-  
   this.updatedAt = Date.now();
   next();
 });

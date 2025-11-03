@@ -11,10 +11,14 @@ const {
   processInsuranceClaim,
   updateInsuranceClaim,
   getBillingStats,
-  deleteBill
+  deleteBill,
+  getPatientUsers  // NEW: Add this
 } = require('../controllers/billingController');
 
 router.use(protect);
+
+// NEW: Get all users with role "Patient" for billing dropdown
+router.get('/patient-users', authorize('Admin', 'Receptionist'), getPatientUsers);
 
 // Stats route (must be before /:id)
 router.get('/stats', authorize('Admin', 'Receptionist'), getBillingStats);

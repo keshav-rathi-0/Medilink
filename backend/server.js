@@ -60,13 +60,6 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(helmet());
 app.use(mongoSanitize());
 
-// Rate limiter
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-});
-app.use('/api/', limiter);
-
 // Log incoming requests (single middleware)
 app.use((req, res, next) => {
   logger.info(`${req.method} ${req.originalUrl} - Origin: ${req.get('Origin') || 'none'}`);

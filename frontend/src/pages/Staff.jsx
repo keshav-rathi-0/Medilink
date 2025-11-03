@@ -46,7 +46,7 @@ const Staff = () => {
     setLoading(true)
     try {
       const response = await api.get('/staff')
-      setStaff(response.data.data || [])
+      setStaff(response.data || [])
     } catch (error) {
       console.error('Fetch error:', error)
       toast.error('Failed to fetch staff members')
@@ -58,7 +58,8 @@ const Staff = () => {
   const fetchAvailableUsers = async () => {
     try {
       const response = await api.get('/staff/available-users')
-      setAvailableUsers(response.data.data || [])
+      console.log(response.data);
+      setAvailableUsers(response.data || [])
     } catch (error) {
       console.error('Fetch users error:', error)
     }
@@ -67,7 +68,9 @@ const Staff = () => {
   const fetchStats = async () => {
     try {
       const response = await api.get('/staff/stats')
-      setStats(response.data.data || null)
+      console.log("acfbsbcs");
+      console.log(response);
+      setStats(response.data || null)
     } catch (error) {
       console.error('Fetch stats error:', error)
     }
