@@ -4,12 +4,15 @@ import { useTheme } from '../context/ThemeContext'
 import TableComponent from '../components/common/TableComponent'
 import Modal from '../components/common/Modal'
 import * as patientService from '../services/patientService'
+import * as appointmentService from '../services/appointmentService'
+import * as doctorService from '../services/doctorService'
 import { toast } from 'react-toastify'
 
 const Patients = () => {
   const { darkMode } = useTheme()
   const [patients, setPatients] = useState([])
   const [availableUsers, setAvailableUsers] = useState([])
+  const [doctors, setDoctors] = useState([])
   const [loading, setLoading] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
   const [showViewModal, setShowViewModal] = useState(false)
@@ -29,14 +32,17 @@ const Patients = () => {
   const [appointmentData, setAppointmentData] = useState({
     doctorId: '',
     appointmentDate: '',
-    appointmentTime: '',
+    startTime: '09:00',
+    endTime: '09:30',
     reason: '',
-    type: 'Consultation'
+    type: 'Consultation',
+    priority: 'Normal'
   })
 
   useEffect(() => {
     fetchPatients()
     fetchAvailableUsers()
+    fetchDoctors()
   }, [])
 
   const fetchPatients = async () => {
@@ -58,6 +64,15 @@ const Patients = () => {
       setAvailableUsers(data.data || [])
     } catch (error) {
       console.error('Fetch users error:', error)
+    }
+  }
+
+  const fetchDoctors = async () => {
+    try {
+      const data = await doctorService.getAllDoctors()
+      setDoctors(data.data || [])
+    } catch (error) {
+      console.error('Fetch doctors error:', error)
     }
   }
 
@@ -116,7 +131,7 @@ const Patients = () => {
 
   const viewAppointments = async (patient) => {
     try {
-      const data = await patientService.getPatientAppointments(patient._id)
+      const data = await appointmentService.getPatientAppointments(patient._id)
       setAppointments(data.data || [])
       setSelectedPatient(patient)
       setShowViewModal(true)
@@ -127,29 +142,52 @@ const Patients = () => {
 
   const handleCreateAppointment = async () => {
     try {
+      // Validate required fields
+      if (!appointmentData.doctorId || !appointmentData.appointmentDate || 
+          !appointmentData.startTime || !appointmentData.endTime) {
+        toast.error('Please fill in all required fields')
+        return
+      }
+
+      // Prepare payload according to API requirements
       const payload = {
         patient: selectedPatient._id,
         doctor: appointmentData.doctorId,
         appointmentDate: appointmentData.appointmentDate,
-        appointmentTime: appointmentData.appointmentTime,
-        reason: appointmentData.reason,
+        timeSlot: {
+          startTime: appointmentData.startTime,
+          endTime: appointmentData.endTime
+        },
         type: appointmentData.type,
-        status: 'Scheduled'
+        priority: appointmentData.priority,
+        symptoms: appointmentData.reason,
+        notes: appointmentData.reason
       }
       
-      await patientService.createAppointment(payload)
-      toast.success('Appointment created successfully')
+      const response = await appointmentService.createAppointment(payload)
+      toast.success('Appointment scheduled successfully')
       setShowAppointmentModal(false)
       setAppointmentData({
         doctorId: '',
         appointmentDate: '',
-        appointmentTime: '',
+        startTime: '09:00',
+        endTime: '09:30',
         reason: '',
-        type: 'Consultation'
+        type: 'Consultation',
+        priority: 'Normal'
       })
     } catch (error) {
-      toast.error('Failed to create appointment')
+      console.error('Appointment creation error:', error)
+      toast.error(error.response?.data?.message || 'Failed to create appointment')
     }
+  }
+
+  const calculateEndTime = (startTime) => {
+    const [hours, minutes] = startTime.split(':').map(Number)
+    const endMinutes = minutes + 30
+    const endHours = endMinutes >= 60 ? hours + 1 : hours
+    const finalMinutes = endMinutes >= 60 ? endMinutes - 60 : endMinutes
+    return `${String(endHours).padStart(2, '0')}:${String(finalMinutes).padStart(2, '0')}`
   }
 
   const columns = [
@@ -187,14 +225,14 @@ const Patients = () => {
         <div className="flex space-x-2">
           <button
             onClick={() => viewMedicalRecords(row)}
-            className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition"
+            className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition"
             title="View Medical Records"
           >
             <FileText className="w-4 h-4" />
           </button>
           <button
             onClick={() => viewAppointments(row)}
-            className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition"
+            className="p-2 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition"
             title="View Appointments"
           >
             <Calendar className="w-4 h-4" />
@@ -205,13 +243,15 @@ const Patients = () => {
               setAppointmentData({
                 doctorId: '',
                 appointmentDate: '',
-                appointmentTime: '',
+                startTime: '09:00',
+                endTime: '09:30',
                 reason: '',
-                type: 'Consultation'
+                type: 'Consultation',
+                priority: 'Normal'
               })
               setShowAppointmentModal(true)
             }}
-            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
+            className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition"
             title="Add Appointment"
           >
             <Plus className="w-4 h-4" />
@@ -229,14 +269,14 @@ const Patients = () => {
               })
               setShowAddModal(true)
             }}
-            className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition"
+            className="p-2 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition"
             title="Edit"
           >
             <Edit className="w-4 h-4" />
           </button>
           <button
             onClick={() => handleDelete(row._id)}
-            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+            className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
             title="Delete"
           >
             <Trash2 className="w-4 h-4" />
@@ -482,17 +522,18 @@ const Patients = () => {
               <div key={idx} className={`p-4 rounded-lg border ${darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'}`}>
                 <div className="flex justify-between items-start">
                   <div>
-                    <p className="font-medium">Dr. {apt.doctor?.name}</p>
+                    <p className="font-medium">Dr. {apt.doctor?.userId?.name || 'Unknown'}</p>
                     <p className="text-sm text-gray-500">{apt.doctor?.specialization}</p>
                     <p className="text-sm mt-2">
-                      {new Date(apt.appointmentDate).toLocaleDateString()} at {apt.appointmentTime}
+                      {new Date(apt.appointmentDate).toLocaleDateString()} at {apt.timeSlot?.startTime}
                     </p>
-                    <p className="text-sm">Reason: {apt.reason}</p>
+                    <p className="text-sm">Reason: {apt.symptoms || apt.notes || 'N/A'}</p>
                   </div>
                   <span className={`px-3 py-1 rounded-full text-sm ${
-                    apt.status === 'Scheduled' ? 'bg-blue-100 text-blue-800' :
-                    apt.status === 'Completed' ? 'bg-green-100 text-green-800' :
-                    'bg-gray-100 text-gray-800'
+                    apt.status === 'Scheduled' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' :
+                    apt.status === 'Confirmed' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
+                    apt.status === 'Completed' ? 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400' :
+                    'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
                   }`}>
                     {apt.status}
                   </span>
@@ -509,73 +550,126 @@ const Patients = () => {
       <Modal
         isOpen={showAppointmentModal}
         onClose={() => setShowAppointmentModal(false)}
-        title="Schedule Appointment"
+        title={`Schedule Appointment - ${selectedPatient?.userId?.name || ''}`}
         size="lg"
       >
         <div className="space-y-4">
           <div>
             <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-              Doctor ID
+              Select Doctor *
             </label>
-            <input
-              type="text"
+            <select
               value={appointmentData.doctorId}
               onChange={(e) => setAppointmentData({ ...appointmentData, doctorId: e.target.value })}
               className={`w-full px-4 py-2 rounded-lg border ${
                 darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
               } focus:ring-2 focus:ring-blue-500`}
-              placeholder="Enter doctor ID"
-            />
-          </div>
-
-          <div>
-            <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-              Appointment Date
-            </label>
-            <input
-              type="date"
-              value={appointmentData.appointmentDate}
-              onChange={(e) => setAppointmentData({ ...appointmentData, appointmentDate: e.target.value })}
-              className={`w-full px-4 py-2 rounded-lg border ${
-                darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
-              } focus:ring-2 focus:ring-blue-500`}
-            />
-          </div>
-
-          <div>
-            <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-              Appointment Time
-            </label>
-            <input
-              type="time"
-              value={appointmentData.appointmentTime}
-              onChange={(e) => setAppointmentData({ ...appointmentData, appointmentTime: e.target.value })}
-              className={`w-full px-4 py-2 rounded-lg border ${
-                darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
-              } focus:ring-2 focus:ring-blue-500`}
-            />
-          </div>
-
-          <div>
-            <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-              Type
-            </label>
-            <select
-              value={appointmentData.type}
-              onChange={(e) => setAppointmentData({ ...appointmentData, type: e.target.value })}
-              className={`w-full px-4 py-2 rounded-lg border ${
-                darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
-              } focus:ring-2 focus:ring-blue-500`}
+              required
             >
-              <option value="Consultation">Consultation</option>
-              <option value="Follow-up">Follow-up</option>
-              <option value="Emergency">Emergency</option>
+              <option value="">Select a doctor...</option>
+              {doctors.map(doctor => (
+                <option key={doctor._id} value={doctor._id}>
+                  {doctor.userId?.name} - {doctor.specialization} (₹{doctor.consultationFee})
+                </option>
+              ))}
             </select>
           </div>
 
           <div>
             <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-              Reason
+              Appointment Date *
+            </label>
+            <input
+              type="date"
+              value={appointmentData.appointmentDate}
+              onChange={(e) => setAppointmentData({ ...appointmentData, appointmentDate: e.target.value })}
+              min={new Date().toISOString().split('T')[0]}
+              className={`w-full px-4 py-2 rounded-lg border ${
+                darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+              } focus:ring-2 focus:ring-blue-500`}
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Start Time *
+              </label>
+              <input
+                type="time"
+                value={appointmentData.startTime}
+                onChange={(e) => {
+                  const endTime = calculateEndTime(e.target.value)
+                  setAppointmentData({ 
+                    ...appointmentData, 
+                    startTime: e.target.value,
+                    endTime: endTime
+                  })
+                }}
+                className={`w-full px-4 py-2 rounded-lg border ${
+                  darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                } focus:ring-2 focus:ring-blue-500`}
+                required
+              />
+            </div>
+
+            <div>
+              <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                End Time *
+              </label>
+              <input
+                type="time"
+                value={appointmentData.endTime}
+                onChange={(e) => setAppointmentData({ ...appointmentData, endTime: e.target.value })}
+                className={`w-full px-4 py-2 rounded-lg border ${
+                  darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                } focus:ring-2 focus:ring-blue-500`}
+                required
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Type *
+              </label>
+              <select
+                value={appointmentData.type}
+                onChange={(e) => setAppointmentData({ ...appointmentData, type: e.target.value })}
+                className={`w-full px-4 py-2 rounded-lg border ${
+                  darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                } focus:ring-2 focus:ring-blue-500`}
+              >
+                <option value="Consultation">Consultation</option>
+                <option value="Follow-up">Follow-up</option>
+                <option value="Emergency">Emergency</option>
+                <option value="Surgery">Surgery</option>
+              </select>
+            </div>
+
+            <div>
+              <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Priority
+              </label>
+              <select
+                value={appointmentData.priority}
+                onChange={(e) => setAppointmentData({ ...appointmentData, priority: e.target.value })}
+                className={`w-full px-4 py-2 rounded-lg border ${
+                  darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                } focus:ring-2 focus:ring-blue-500`}
+              >
+                <option value="Normal">Normal</option>
+                <option value="Urgent">Urgent</option>
+                <option value="Emergency">Emergency</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+              Reason / Symptoms
             </label>
             <textarea
               value={appointmentData.reason}
@@ -584,7 +678,7 @@ const Patients = () => {
                 darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
               } focus:ring-2 focus:ring-blue-500`}
               rows="3"
-              placeholder="Enter reason for appointment"
+              placeholder="Enter reason for appointment or symptoms..."
             />
           </div>
 

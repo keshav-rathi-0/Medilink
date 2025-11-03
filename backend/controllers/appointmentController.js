@@ -3,14 +3,34 @@ const Doctor = require('../models/Doctor');
 const Patient = require('../models/Patient');
 const asyncHandler = require('../utils/asyncHandler');
 
-exports.createAppointment = asyncHandler(async (req, res) => {
+// Create new appointment
+const createAppointment = asyncHandler(async (req, res) => {
   const { patient, doctor, appointmentDate, timeSlot, type, symptoms, priority } = req.body;
 
+  // Verify patient and doctor exist
   const patientExists = await Patient.findById(patient);
-  const doctorExists = await Doctor.findById(doctor);
+  const doctorExists = await Doctor.findById(doctor).populate('userId');
 
-  if (!patientExists || !doctorExists) {
-    return res.status(404).json({ message: 'Patient or Doctor not found' });
+  if (!patientExists) {
+    return res.status(404).json({ 
+      success: false, 
+      message: 'Patient not found' 
+    });
+  }
+
+  if (!doctorExists) {
+    return res.status(404).json({ 
+      success: false, 
+      message: 'Doctor not found' 
+    });
+  }
+
+  // Check if doctor is available
+  if (!doctorExists.isAvailable) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'Doctor is not available' 
+    });
   }
 
   // Check if slot is available
@@ -18,113 +38,372 @@ exports.createAppointment = asyncHandler(async (req, res) => {
     doctor,
     appointmentDate,
     'timeSlot.startTime': timeSlot.startTime,
-    status: { $nin: ['Cancelled', 'Completed'] }
+    status: { $nin: ['Cancelled', 'Completed', 'No-Show'] }
   });
 
   if (existingAppointment) {
-    return res.status(400).json({ message: 'Time slot not available' });
+    return res.status(400).json({ 
+      success: false, 
+      message: 'Time slot is already booked' 
+    });
   }
 
   const appointment = await Appointment.create({
-    patient, doctor, appointmentDate, timeSlot, type, symptoms, priority,
+    patient, 
+    doctor, 
+    appointmentDate, 
+    timeSlot, 
+    type, 
+    symptoms, 
+    priority,
     createdBy: req.user.id
   });
 
-  res.status(201).json({ success: true, data: appointment });
+  const populatedAppointment = await Appointment.findById(appointment._id)
+    .populate('patient')
+    .populate({
+      path: 'doctor',
+      populate: { path: 'userId' }
+    })
+    .populate({
+      path: 'patient',
+      populate: { path: 'userId' }
+    });
+
+  res.status(201).json({ 
+    success: true, 
+    data: populatedAppointment,
+    message: 'Appointment created successfully'
+  });
 });
 
-exports.getAppointments = asyncHandler(async (req, res) => {
-  const { doctor, patient, status, date, priority } = req.query;
+// Get all appointments with filters
+const getAppointments = asyncHandler(async (req, res) => {
+  const { doctor, patient, status, date, priority, search } = req.query;
   
   let query = {};
+  
   if (doctor) query.doctor = doctor;
   if (patient) query.patient = patient;
   if (status) query.status = status;
   if (priority) query.priority = priority;
+  
   if (date) {
+    const startDate = new Date(date);
+    const endDate = new Date(date);
+    endDate.setDate(endDate.getDate() + 1);
+    
     query.appointmentDate = {
-      $gte: new Date(date),
-      $lt: new Date(new Date(date).setDate(new Date(date).getDate() + 1))
+      $gte: startDate,
+      $lt: endDate
     };
   }
 
   const appointments = await Appointment.find(query)
-    .populate('patient', 'patientId userId')
-    .populate('doctor', 'userId specialization')
-    .populate('patient.userId', 'name phone')
-    .populate('doctor.userId', 'name')
-    .sort('-appointmentDate');
+    .populate({
+      path: 'patient',
+      populate: { path: 'userId', select: 'name email phone' }
+    })
+    .populate({
+      path: 'doctor',
+      populate: { path: 'userId', select: 'name email' },
+      select: 'userId specialization consultationFee'
+    })
+    .sort('-appointmentDate -timeSlot.startTime');
 
-  res.status(200).json({ success: true, count: appointments.length, data: appointments });
+  // Search filter
+  let filteredAppointments = appointments;
+  if (search) {
+    const searchLower = search.toLowerCase();
+    filteredAppointments = appointments.filter(apt => {
+      const patientName = apt.patient?.userId?.name?.toLowerCase() || '';
+      const doctorName = apt.doctor?.userId?.name?.toLowerCase() || '';
+      const appointmentId = apt.appointmentId?.toLowerCase() || '';
+      
+      return patientName.includes(searchLower) || 
+             doctorName.includes(searchLower) || 
+             appointmentId.includes(searchLower);
+    });
+  }
+
+  res.status(200).json({ 
+    success: true, 
+    count: filteredAppointments.length, 
+    data: filteredAppointments 
+  });
 });
 
-exports.getAppointment = asyncHandler(async (req, res) => {
+// Get single appointment
+const getAppointment = asyncHandler(async (req, res) => {
   const appointment = await Appointment.findById(req.params.id)
-    .populate('patient')
-    .populate('doctor')
+    .populate({
+      path: 'patient',
+      populate: { path: 'userId' }
+    })
+    .populate({
+      path: 'doctor',
+      populate: { path: 'userId' }
+    })
     .populate('prescription');
   
   if (!appointment) {
-    return res.status(404).json({ message: 'Appointment not found' });
+    return res.status(404).json({ 
+      success: false, 
+      message: 'Appointment not found' 
+    });
   }
 
-  res.status(200).json({ success: true, data: appointment });
+  res.status(200).json({ 
+    success: true, 
+    data: appointment 
+  });
 });
 
-exports.updateAppointment = asyncHandler(async (req, res) => {
+// Update appointment
+const updateAppointment = asyncHandler(async (req, res) => {
   let appointment = await Appointment.findById(req.params.id);
   
   if (!appointment) {
-    return res.status(404).json({ message: 'Appointment not found' });
+    return res.status(404).json({ 
+      success: false, 
+      message: 'Appointment not found' 
+    });
   }
 
-  appointment = await Appointment.findByIdAndUpdate(req.params.id, req.body, {
-    new: true,
-    runValidators: true
-  });
+  // If updating time slot, check availability
+  if (req.body.timeSlot || req.body.appointmentDate) {
+    const timeSlot = req.body.timeSlot || appointment.timeSlot;
+    const appointmentDate = req.body.appointmentDate || appointment.appointmentDate;
+    
+    const conflict = await Appointment.findOne({
+      doctor: appointment.doctor,
+      appointmentDate,
+      'timeSlot.startTime': timeSlot.startTime,
+      _id: { $ne: req.params.id },
+      status: { $nin: ['Cancelled', 'Completed', 'No-Show'] }
+    });
 
-  res.status(200).json({ success: true, data: appointment });
+    if (conflict) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Time slot not available' 
+      });
+    }
+  }
+
+  appointment = await Appointment.findByIdAndUpdate(
+    req.params.id, 
+    req.body, 
+    {
+      new: true,
+      runValidators: true
+    }
+  )
+    .populate({
+      path: 'patient',
+      populate: { path: 'userId' }
+    })
+    .populate({
+      path: 'doctor',
+      populate: { path: 'userId' }
+    });
+
+  res.status(200).json({ 
+    success: true, 
+    data: appointment,
+    message: 'Appointment updated successfully'
+  });
 });
 
-exports.cancelAppointment = asyncHandler(async (req, res) => {
+// Cancel appointment
+const cancelAppointment = asyncHandler(async (req, res) => {
   const appointment = await Appointment.findById(req.params.id);
   
   if (!appointment) {
-    return res.status(404).json({ message: 'Appointment not found' });
+    return res.status(404).json({ 
+      success: false, 
+      message: 'Appointment not found' 
+    });
+  }
+
+  if (appointment.status === 'Completed') {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'Cannot cancel completed appointment' 
+    });
   }
 
   appointment.status = 'Cancelled';
-  appointment.cancelReason = req.body.reason;
+  appointment.cancelReason = req.body.reason || 'No reason provided';
   await appointment.save();
 
-  res.status(200).json({ success: true, data: appointment });
+  res.status(200).json({ 
+    success: true, 
+    data: appointment,
+    message: 'Appointment cancelled successfully'
+  });
 });
 
-exports.rescheduleAppointment = asyncHandler(async (req, res) => {
+// Reschedule appointment
+const rescheduleAppointment = asyncHandler(async (req, res) => {
   const { appointmentDate, timeSlot } = req.body;
+  
+  if (!appointmentDate || !timeSlot) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'Date and time slot are required' 
+    });
+  }
   
   const appointment = await Appointment.findById(req.params.id);
   
   if (!appointment) {
-    return res.status(404).json({ message: 'Appointment not found' });
+    return res.status(404).json({ 
+      success: false, 
+      message: 'Appointment not found' 
+    });
   }
 
-  // Check availability
+  if (appointment.status === 'Completed' || appointment.status === 'Cancelled') {
+    return res.status(400).json({ 
+      success: false, 
+      message: `Cannot reschedule ${appointment.status.toLowerCase()} appointment` 
+    });
+  }
+
+  // Check availability for new slot
   const conflict = await Appointment.findOne({
     doctor: appointment.doctor,
     appointmentDate,
     'timeSlot.startTime': timeSlot.startTime,
     _id: { $ne: req.params.id },
-    status: { $nin: ['Cancelled', 'Completed'] }
+    status: { $nin: ['Cancelled', 'Completed', 'No-Show'] }
   });
 
   if (conflict) {
-    return res.status(400).json({ message: 'Time slot not available' });
+    return res.status(400).json({ 
+      success: false, 
+      message: 'Time slot not available' 
+    });
   }
 
   appointment.appointmentDate = appointmentDate;
   appointment.timeSlot = timeSlot;
+  appointment.status = 'Scheduled';
   await appointment.save();
 
-  res.status(200).json({ success: true, data: appointment });
+  const updatedAppointment = await Appointment.findById(appointment._id)
+    .populate({
+      path: 'patient',
+      populate: { path: 'userId' }
+    })
+    .populate({
+      path: 'doctor',
+      populate: { path: 'userId' }
+    });
+
+  res.status(200).json({ 
+    success: true, 
+    data: updatedAppointment,
+    message: 'Appointment rescheduled successfully'
+  });
 });
+
+// Get doctor availability (available time slots)
+const getDoctorAvailability = asyncHandler(async (req, res) => {
+  const { doctorId } = req.params;
+  const { date } = req.query;
+  
+  if (!date) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'Date is required' 
+    });
+  }
+
+  const doctor = await Doctor.findById(doctorId);
+  
+  if (!doctor) {
+    return res.status(404).json({ 
+      success: false, 
+      message: 'Doctor not found' 
+    });
+  }
+
+  // Get booked appointments for the date
+  const startDate = new Date(date);
+  const endDate = new Date(date);
+  endDate.setDate(endDate.getDate() + 1);
+
+  const bookedAppointments = await Appointment.find({
+    doctor: doctorId,
+    appointmentDate: { $gte: startDate, $lt: endDate },
+    status: { $nin: ['Cancelled', 'No-Show'] }
+  }).select('timeSlot');
+
+  const bookedSlots = bookedAppointments.map(apt => apt.timeSlot.startTime);
+
+  // Get doctor's schedule for the day
+  const dayOfWeek = new Date(date).toLocaleDateString('en-US', { weekday: 'long' });
+  const daySchedule = doctor.availability.find(
+    slot => slot.day.toLowerCase() === dayOfWeek.toLowerCase()
+  );
+
+  let availableSlots = [];
+  if (daySchedule && daySchedule.slots.length > 0) {
+    // Generate time slots based on doctor's schedule
+    daySchedule.slots.forEach(slot => {
+      if (slot.isAvailable) {
+        const slots = generateTimeSlots(slot.startTime, slot.endTime);
+        availableSlots = availableSlots.concat(
+          slots.filter(time => !bookedSlots.includes(time))
+        );
+      }
+    });
+  }
+
+  res.status(200).json({ 
+    success: true, 
+    data: {
+      date,
+      doctor: doctorId,
+      availableSlots,
+      bookedSlots
+    }
+  });
+});
+
+// Helper function to generate time slots
+function generateTimeSlots(startTime, endTime, interval = 30) {
+  const slots = [];
+  const [startHour, startMin] = startTime.split(':').map(Number);
+  const [endHour, endMin] = endTime.split(':').map(Number);
+  
+  let currentHour = startHour;
+  let currentMin = startMin;
+  
+  while (currentHour < endHour || (currentHour === endHour && currentMin < endMin)) {
+    slots.push(
+      `${String(currentHour).padStart(2, '0')}:${String(currentMin).padStart(2, '0')}`
+    );
+    
+    currentMin += interval;
+    if (currentMin >= 60) {
+      currentHour += 1;
+      currentMin -= 60;
+    }
+  }
+  
+  return slots;
+}
+
+// Export all functions
+module.exports = {
+  createAppointment,
+  getAppointments,
+  getAppointment,
+  updateAppointment,
+  cancelAppointment,
+  rescheduleAppointment,
+  getDoctorAvailability
+};

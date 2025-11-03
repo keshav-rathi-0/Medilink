@@ -10,26 +10,54 @@ const {
   updateDoctor,
   deleteDoctor,
   updateAvailability,
-  addOnCallShift
+  addOnCallShift,
+  getAvailableDoctorUsers,
+  getDoctorSchedule,
+  getDoctorAppointments
 } = require('../controllers/doctorController');
 
+// Protect all routes - authentication required
 router.use(protect);
 
+// Get available doctor users (must be before /:id routes)
+router.get('/available-users', authorize('Admin', 'Receptionist'), getAvailableDoctorUsers);
+
+// Main doctor routes
 router.route('/')
   .get(getDoctors)
-  .post(authorize('Admin'), [
+  .post(authorize('Admin', 'Receptionist'), [
     body('userId').notEmpty().withMessage('User ID is required'),
     body('specialization').notEmpty().withMessage('Specialization is required'),
+    body('qualification').notEmpty().withMessage('Qualification is required'),
     body('licenseNumber').notEmpty().withMessage('License number is required'),
+    body('department').optional(),
+    body('consultationFee').optional().isNumeric().withMessage('Consultation fee must be a number'),
+    body('experience').optional().isNumeric().withMessage('Experience must be a number'),
     validate
   ], createDoctor);
 
+// Single doctor routes
 router.route('/:id')
   .get(getDoctor)
-  .put(authorize('Admin', 'Doctor'), updateDoctor)
+  .put(authorize('Admin', 'Receptionist', 'Doctor'), updateDoctor)
   .delete(authorize('Admin'), deleteDoctor);
 
-router.put('/:id/availability', authorize('Admin', 'Doctor'), updateAvailability);
-router.post('/:id/oncall', authorize('Admin'), addOnCallShift);
+// Doctor schedule/availability routes
+router.get('/:id/schedule', getDoctorSchedule);
+router.put('/:id/availability', authorize('Admin', 'Receptionist', 'Doctor'), [
+  body('availability').isArray().withMessage('Availability must be an array'),
+  validate
+], updateAvailability);
+
+// On-call shift management
+router.post('/:id/oncall', authorize('Admin', 'Receptionist'), [
+  body('date').notEmpty().withMessage('Date is required'),
+  body('startTime').notEmpty().withMessage('Start time is required'),
+  body('endTime').notEmpty().withMessage('End time is required'),
+  validate
+], addOnCallShift);
+
+// Doctor appointments
+router.get('/:id/appointments', getDoctorAppointments);
 
 module.exports = router;

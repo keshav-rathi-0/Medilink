@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Plus, Edit, Trash2, Calendar, Clock, Star, Filter, Search } from 'lucide-react'
+import { Plus, Edit, Trash2, Calendar, Clock, Star, Filter } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
 import TableComponent from '../components/common/TableComponent'
 import Modal from '../components/common/Modal'
@@ -9,16 +9,18 @@ import { toast } from 'react-toastify'
 const Doctors = () => {
   const { darkMode } = useTheme()
   const [doctors, setDoctors] = useState([])
+  const [availableUsers, setAvailableUsers] = useState([])
+  const [loading, setLoading] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [selectedDoctor, setSelectedDoctor] = useState(null)
+  
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
+    userId: '',
     specialization: '',
     qualification: '',
     experience: '',
+    licenseNumber: '',
     department: '',
     consultationFee: '',
     availability: []
@@ -34,95 +36,104 @@ const Doctors = () => {
     sunday: { available: false, startTime: '09:00', endTime: '14:00' }
   })
 
-  const mockDoctors = [
-    {
-      _id: '1',
-      doctorId: 'DOC001',
-      name: 'Dr. Sarah Wilson',
-      specialization: 'Cardiology',
-      qualification: 'MD, DM Cardiology',
-      experience: '15 years',
-      phone: '+1234567890',
-      email: 'sarah.wilson@hospital.com',
-      consultationFee: 150,
-      rating: 4.8,
-      patientsServed: 1250
-    },
-    {
-      _id: '2',
-      doctorId: 'DOC002',
-      name: 'Dr. Michael Brown',
-      specialization: 'Neurology',
-      qualification: 'MD, DM Neurology',
-      experience: '12 years',
-      phone: '+1234567891',
-      email: 'michael.brown@hospital.com',
-      consultationFee: 180,
-      rating: 4.9,
-      patientsServed: 980
-    },
-    {
-      _id: '3',
-      doctorId: 'DOC003',
-      name: 'Dr. Emily Chen',
-      specialization: 'Orthopedics',
-      qualification: 'MS Orthopedics',
-      experience: '10 years',
-      phone: '+1234567892',
-      email: 'emily.chen@hospital.com',
-      consultationFee: 120,
-      rating: 4.7,
-      patientsServed: 850
-    },
-    {
-      _id: '4',
-      doctorId: 'DOC004',
-      name: 'Dr. James Taylor',
-      specialization: 'Pediatrics',
-      qualification: 'MD Pediatrics',
-      experience: '8 years',
-      phone: '+1234567893',
-      email: 'james.taylor@hospital.com',
-      consultationFee: 100,
-      rating: 4.6,
-      patientsServed: 1500
+  useEffect(() => {
+    fetchDoctors()
+    fetchAvailableUsers()
+  }, [])
+
+  const fetchDoctors = async () => {
+    setLoading(true)
+    try {
+      const data = await doctorService.getAllDoctors()
+      setDoctors(data.data || [])
+    } catch (error) {
+      console.error('Fetch error:', error)
+      toast.error('Failed to fetch doctors')
+    } finally {
+      setLoading(false)
     }
-  ]
-
-  const handleSubmit = () => {
-    toast.success(selectedDoctor ? 'Doctor updated successfully' : 'Doctor added successfully')
-    setShowAddModal(false)
-    setFormData({
-      name: '',
-      email: '',
-      phone: '',
-      specialization: '',
-      qualification: '',
-      experience: '',
-      department: '',
-      consultationFee: '',
-      availability: []
-    })
-    setSelectedDoctor(null)
   }
 
-  const handleScheduleUpdate = () => {
-    toast.success('Schedule updated successfully')
-    setShowScheduleModal(false)
+  const fetchAvailableUsers = async () => {
+    try {
+      const data = await doctorService.getAvailableDoctorUsers()
+      setAvailableUsers(data.data || [])
+    } catch (error) {
+      console.error('Fetch users error:', error)
+    }
   }
 
-  const handleDelete = (id) => {
+  const handleSubmit = async () => {
+    try {
+      if (selectedDoctor) {
+        await doctorService.updateDoctor(selectedDoctor._id, formData)
+        toast.success('Doctor updated successfully')
+      } else {
+        await doctorService.createDoctor(formData)
+        toast.success('Doctor profile created successfully')
+        fetchAvailableUsers()
+      }
+      
+      setShowAddModal(false)
+      setFormData({
+        userId: '',
+        specialization: '',
+        qualification: '',
+        experience: '',
+        licenseNumber: '',
+        department: '',
+        consultationFee: '',
+        availability: []
+      })
+      setSelectedDoctor(null)
+      fetchDoctors()
+    } catch (error) {
+      console.error('Submit error:', error)
+      toast.error(error.response?.data?.message || error.message || 'Operation failed')
+    }
+  }
+
+  const handleScheduleUpdate = async () => {
+    try {
+      // Convert schedule object to array format expected by backend
+      const availabilityArray = Object.keys(scheduleData).map(day => ({
+        day: day.charAt(0).toUpperCase() + day.slice(1),
+        slots: scheduleData[day].available ? [{
+          startTime: scheduleData[day].startTime,
+          endTime: scheduleData[day].endTime,
+          isAvailable: true
+        }] : []
+      })).filter(item => item.slots.length > 0)
+
+      await doctorService.updateDoctorSchedule(selectedDoctor._id, availabilityArray)
+      toast.success('Schedule updated successfully')
+      setShowScheduleModal(false)
+      fetchDoctors()
+    } catch (error) {
+      toast.error('Failed to update schedule')
+    }
+  }
+
+  const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this doctor?')) {
-      toast.success('Doctor deleted successfully')
+      try {
+        await doctorService.deleteDoctor(id)
+        toast.success('Doctor deleted successfully')
+        fetchDoctors()
+        fetchAvailableUsers()
+      } catch (error) {
+        console.error('Delete error:', error)
+        toast.error('Failed to delete doctor')
+      }
     }
   }
 
   const columns = [
     { 
-      header: 'Doctor ID', 
-      accessor: 'doctorId',
+      header: 'License #', 
+      accessor: 'licenseNumber',
       render: (row) => (
-        <span className="font-mono text-sm">{row.doctorId}</span>
+        <span className="font-mono text-sm">{row.licenseNumber}</span>
       )
     },
     {
@@ -131,11 +142,11 @@ const Doctors = () => {
       render: (row) => (
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-600 to-cyan-600 flex items-center justify-center text-white font-semibold">
-            {row.name.split(' ').map(n => n[0]).join('')}
+            {row.userId?.name ? row.userId.name.split(' ').map(n => n[0]).join('') : 'Dr'}
           </div>
           <div>
-            <p className="font-semibold">{row.name}</p>
-            <p className="text-xs text-gray-500">{row.email}</p>
+            <p className="font-semibold">{row.userId?.name || 'N/A'}</p>
+            <p className="text-xs text-gray-500">{row.userId?.email || 'N/A'}</p>
           </div>
         </div>
       )
@@ -146,14 +157,16 @@ const Doctors = () => {
       header: 'Experience', 
       accessor: 'experience',
       render: (row) => (
-        <span className="text-sm">{row.experience}</span>
+        <span className="text-sm">{row.experience} years</span>
       )
     },
     {
       header: 'Fee',
       accessor: 'consultationFee',
       render: (row) => (
-        <span className="font-semibold text-green-600">${row.consultationFee}</span>
+        <span className="font-semibold text-green-600">
+          ₹{row.consultationFee?.toLocaleString('en-IN') || '0'}
+        </span>
       )
     },
     {
@@ -162,7 +175,7 @@ const Doctors = () => {
       render: (row) => (
         <div className="flex items-center space-x-1">
           <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-          <span className="font-semibold">{row.rating}</span>
+          <span className="font-semibold">{row.rating || '0.0'}</span>
         </div>
       )
     },
@@ -184,7 +197,16 @@ const Doctors = () => {
           <button
             onClick={() => {
               setSelectedDoctor(row)
-              setFormData(row)
+              setFormData({
+                userId: row.userId?._id || '',
+                specialization: row.specialization || '',
+                qualification: row.qualification || '',
+                experience: row.experience || '',
+                licenseNumber: row.licenseNumber || '',
+                department: row.department || '',
+                consultationFee: row.consultationFee || '',
+                availability: row.availability || []
+              })
               setShowAddModal(true)
             }}
             className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition"
@@ -215,23 +237,14 @@ const Doctors = () => {
         </div>
         <div className="flex space-x-3">
           <button
-            className={`flex items-center space-x-2 px-4 py-2 rounded-lg border ${
-              darkMode ? 'border-gray-600 hover:bg-gray-700' : 'border-gray-300 hover:bg-gray-50'
-            } transition`}
-          >
-            <Filter className="w-5 h-5" />
-            <span>Filter</span>
-          </button>
-          <button
             onClick={() => {
               setSelectedDoctor(null)
               setFormData({
-                name: '',
-                email: '',
-                phone: '',
+                userId: '',
                 specialization: '',
                 qualification: '',
                 experience: '',
+                licenseNumber: '',
                 department: '',
                 consultationFee: '',
                 availability: []
@@ -241,7 +254,7 @@ const Doctors = () => {
             className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg hover:from-blue-700 hover:to-cyan-700 transition"
           >
             <Plus className="w-5 h-5" />
-            <span>Add Doctor</span>
+            <span>Add Doctor Profile</span>
           </button>
         </div>
       </div>
@@ -253,7 +266,7 @@ const Doctors = () => {
             <div>
               <p className="text-sm text-gray-500 font-medium">Total Doctors</p>
               <h3 className={`text-2xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                {mockDoctors.length}
+                {doctors.length}
               </h3>
             </div>
             <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
@@ -265,9 +278,9 @@ const Doctors = () => {
         <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-xl p-6`}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500 font-medium">On Duty Today</p>
+              <p className="text-sm text-gray-500 font-medium">Available</p>
               <h3 className={`text-2xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                18
+                {doctors.filter(d => d.isAvailable).length}
               </h3>
             </div>
             <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
@@ -281,7 +294,7 @@ const Doctors = () => {
             <div>
               <p className="text-sm text-gray-500 font-medium">Specializations</p>
               <h3 className={`text-2xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                12
+                {new Set(doctors.map(d => d.specialization)).size}
               </h3>
             </div>
             <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
@@ -295,7 +308,9 @@ const Doctors = () => {
             <div>
               <p className="text-sm text-gray-500 font-medium">Avg Rating</p>
               <h3 className={`text-2xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                4.7
+                {doctors.length > 0 
+                  ? (doctors.reduce((sum, d) => sum + (d.rating || 0), 0) / doctors.length).toFixed(1)
+                  : '0.0'}
               </h3>
             </div>
             <div className="p-3 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
@@ -307,166 +322,171 @@ const Doctors = () => {
 
       <TableComponent
         columns={columns}
-        data={mockDoctors}
-        searchPlaceholder="Search doctors by name, ID, or specialization..."
+        data={doctors}
+        searchPlaceholder="Search doctors by name, license, or specialization..."
       />
 
       {/* Add/Edit Doctor Modal */}
       <Modal
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
-        title={selectedDoctor ? 'Edit Doctor' : 'Add New Doctor'}
+        title={selectedDoctor ? 'Edit Doctor' : 'Add Doctor Profile'}
         size="lg"
       >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-              Full Name
-            </label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className={`w-full px-4 py-2 rounded-lg border ${
-                darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
-              } focus:ring-2 focus:ring-blue-500`}
-              placeholder="Dr. John Doe"
-            />
+        <div className="space-y-4">
+          {!selectedDoctor && (
+            <div>
+              <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Select Doctor User
+              </label>
+              <select
+                value={formData.userId}
+                onChange={(e) => setFormData({ ...formData, userId: e.target.value })}
+                className={`w-full px-4 py-2 rounded-lg border ${
+                  darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                } focus:ring-2 focus:ring-blue-500`}
+              >
+                <option value="">Select a registered doctor user...</option>
+                {availableUsers.map(user => (
+                  <option key={user._id} value={user._id}>
+                    {user.name} - {user.email}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Specialization *
+              </label>
+              <select
+                value={formData.specialization}
+                onChange={(e) => setFormData({ ...formData, specialization: e.target.value })}
+                className={`w-full px-4 py-2 rounded-lg border ${
+                  darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                } focus:ring-2 focus:ring-blue-500`}
+                required
+              >
+                <option value="">Select Specialization</option>
+                <option value="Cardiology">Cardiology</option>
+                <option value="Neurology">Neurology</option>
+                <option value="Orthopedics">Orthopedics</option>
+                <option value="Pediatrics">Pediatrics</option>
+                <option value="Dermatology">Dermatology</option>
+                <option value="Gynecology">Gynecology</option>
+                <option value="ENT">ENT</option>
+                <option value="General Surgery">General Surgery</option>
+                <option value="Psychiatry">Psychiatry</option>
+                <option value="Radiology">Radiology</option>
+              </select>
+            </div>
+
+            <div>
+              <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Qualification *
+              </label>
+              <input
+                type="text"
+                value={formData.qualification}
+                onChange={(e) => setFormData({ ...formData, qualification: e.target.value })}
+                className={`w-full px-4 py-2 rounded-lg border ${
+                  darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                } focus:ring-2 focus:ring-blue-500`}
+                placeholder="MD, DM Cardiology"
+                required
+              />
+            </div>
+
+            <div>
+              <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Experience (Years) *
+              </label>
+              <input
+                type="number"
+                value={formData.experience}
+                onChange={(e) => setFormData({ ...formData, experience: e.target.value })}
+                className={`w-full px-4 py-2 rounded-lg border ${
+                  darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                } focus:ring-2 focus:ring-blue-500`}
+                placeholder="10"
+                required
+              />
+            </div>
+
+            <div>
+              <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                License Number *
+              </label>
+              <input
+                type="text"
+                value={formData.licenseNumber}
+                onChange={(e) => setFormData({ ...formData, licenseNumber: e.target.value })}
+                className={`w-full px-4 py-2 rounded-lg border ${
+                  darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                } focus:ring-2 focus:ring-blue-500`}
+                placeholder="LIC123456"
+                required
+                disabled={!!selectedDoctor}
+              />
+            </div>
+
+            <div>
+              <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Department *
+              </label>
+              <select
+                value={formData.department}
+                onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                className={`w-full px-4 py-2 rounded-lg border ${
+                  darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                } focus:ring-2 focus:ring-blue-500`}
+                required
+              >
+                <option value="">Select Department</option>
+                <option value="Cardiology">Cardiology</option>
+                <option value="Neurology">Neurology</option>
+                <option value="Orthopedics">Orthopedics</option>
+                <option value="Pediatrics">Pediatrics</option>
+                <option value="Emergency">Emergency</option>
+                <option value="General Medicine">General Medicine</option>
+              </select>
+            </div>
+
+            <div>
+              <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Consultation Fee (₹) *
+              </label>
+              <input
+                type="number"
+                value={formData.consultationFee}
+                onChange={(e) => setFormData({ ...formData, consultationFee: e.target.value })}
+                className={`w-full px-4 py-2 rounded-lg border ${
+                  darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                } focus:ring-2 focus:ring-blue-500`}
+                placeholder="100"
+                required
+              />
+            </div>
           </div>
 
-          <div>
-            <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-              Email
-            </label>
-            <input
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className={`w-full px-4 py-2 rounded-lg border ${
-                darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
-              } focus:ring-2 focus:ring-blue-500`}
-              placeholder="doctor@hospital.com"
-            />
-          </div>
-
-          <div>
-            <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-              Phone
-            </label>
-            <input
-              type="tel"
-              value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              className={`w-full px-4 py-2 rounded-lg border ${
-                darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
-              } focus:ring-2 focus:ring-blue-500`}
-              placeholder="+1234567890"
-            />
-          </div>
-
-          <div>
-            <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-              Specialization
-            </label>
-            <select
-              value={formData.specialization}
-              onChange={(e) => setFormData({ ...formData, specialization: e.target.value })}
-              className={`w-full px-4 py-2 rounded-lg border ${
-                darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
-              } focus:ring-2 focus:ring-blue-500`}
+          <div className="flex justify-end space-x-3 mt-6">
+            <button
+              onClick={() => setShowAddModal(false)}
+              className={`px-6 py-2 rounded-lg border ${
+                darkMode ? 'border-gray-600 hover:bg-gray-700' : 'border-gray-300 hover:bg-gray-50'
+              } transition`}
             >
-              <option value="">Select Specialization</option>
-              <option value="Cardiology">Cardiology</option>
-              <option value="Neurology">Neurology</option>
-              <option value="Orthopedics">Orthopedics</option>
-              <option value="Pediatrics">Pediatrics</option>
-              <option value="Dermatology">Dermatology</option>
-              <option value="Gynecology">Gynecology</option>
-              <option value="ENT">ENT</option>
-              <option value="General Surgery">General Surgery</option>
-            </select>
-          </div>
-
-          <div>
-            <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-              Qualification
-            </label>
-            <input
-              type="text"
-              value={formData.qualification}
-              onChange={(e) => setFormData({ ...formData, qualification: e.target.value })}
-              className={`w-full px-4 py-2 rounded-lg border ${
-                darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
-              } focus:ring-2 focus:ring-blue-500`}
-              placeholder="MD, DM"
-            />
-          </div>
-
-          <div>
-            <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-              Experience (Years)
-            </label>
-            <input
-              type="number"
-              value={formData.experience}
-              onChange={(e) => setFormData({ ...formData, experience: e.target.value })}
-              className={`w-full px-4 py-2 rounded-lg border ${
-                darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
-              } focus:ring-2 focus:ring-blue-500`}
-              placeholder="10"
-            />
-          </div>
-
-          <div>
-            <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-              Department
-            </label>
-            <select
-              value={formData.department}
-              onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-              className={`w-full px-4 py-2 rounded-lg border ${
-                darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
-              } focus:ring-2 focus:ring-blue-500`}
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmit}
+              className="px-6 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg hover:from-blue-700 hover:to-cyan-700 transition"
             >
-              <option value="">Select Department</option>
-              <option value="Cardiology">Cardiology</option>
-              <option value="Neurology">Neurology</option>
-              <option value="Orthopedics">Orthopedics</option>
-              <option value="Pediatrics">Pediatrics</option>
-            </select>
+              {selectedDoctor ? 'Update' : 'Add'} Doctor
+            </button>
           </div>
-
-          <div>
-            <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-              Consultation Fee ($)
-            </label>
-            <input
-              type="number"
-              value={formData.consultationFee}
-              onChange={(e) => setFormData({ ...formData, consultationFee: e.target.value })}
-              className={`w-full px-4 py-2 rounded-lg border ${
-                darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
-              } focus:ring-2 focus:ring-blue-500`}
-              placeholder="100"
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-end space-x-3 mt-6">
-          <button
-            onClick={() => setShowAddModal(false)}
-            className={`px-6 py-2 rounded-lg border ${
-              darkMode ? 'border-gray-600 hover:bg-gray-700' : 'border-gray-300 hover:bg-gray-50'
-            } transition`}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            className="px-6 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg hover:from-blue-700 hover:to-cyan-700 transition"
-          >
-            {selectedDoctor ? 'Update' : 'Add'} Doctor
-          </button>
         </div>
       </Modal>
 
@@ -474,7 +494,7 @@ const Doctors = () => {
       <Modal
         isOpen={showScheduleModal}
         onClose={() => setShowScheduleModal(false)}
-        title={`Manage Schedule - ${selectedDoctor?.name}`}
+        title={`Manage Schedule - ${selectedDoctor?.userId?.name || 'Doctor'}`}
         size="lg"
       >
         <div className="space-y-4">

@@ -79,7 +79,7 @@ const DoctorList = ({ doctors, onDoctorSelect }) => {
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-500">Fee:</span>
                 <span className="text-sm font-semibold text-green-600">
-                  ${doctor.consultationFee}
+                  ₹{doctor.consultationFee}
                 </span>
               </div>
               <div className="flex items-center justify-between">
