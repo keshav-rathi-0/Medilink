@@ -33,4 +33,3 @@ router.post('/:id/allocate', authorize('Admin', 'Nurse', 'Receptionist'), alloca
 router.post('/:id/release', authorize('Admin', 'Nurse', 'Receptionist'), releaseBed);
 
 module.exports = router;
-
