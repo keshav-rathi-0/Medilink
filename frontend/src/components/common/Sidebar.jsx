@@ -93,7 +93,7 @@ const Sidebar = () => {
           </div>
           <div>
             <h1 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-              MediCare
+              MediLink
             </h1>
             <p className="text-xs text-gray-500">Hospital Management</p>
           </div>

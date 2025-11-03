@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Users, Calendar, Bed, DollarSign, Activity, TrendingUp } from 'lucide-react'
+import { Users, Calendar, Bed, IndianRupee ,Activity, TrendingUp } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import StatCard from '../common/StatCard'
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
@@ -14,10 +14,10 @@ const AdminDashboard = () => {
   })
 
   const recentAppointments = [
-    { id: 1, patient: 'John Smith', doctor: 'Dr. Sarah Wilson', time: '09:00 AM', status: 'Confirmed', type: 'Consultation' },
-    { id: 2, patient: 'Emma Johnson', doctor: 'Dr. Michael Brown', time: '10:30 AM', status: 'Pending', type: 'Follow-up' },
-    { id: 3, patient: 'Robert Davis', doctor: 'Dr. Emily Chen', time: '11:00 AM', status: 'Confirmed', type: 'Surgery' },
-    { id: 4, patient: 'Lisa Anderson', doctor: 'Dr. James Taylor', time: '02:00 PM', status: 'Confirmed', type: 'Check-up' },
+    { id: 1, patient: 'Kanan Patient', doctor: 'Dr. Kanishk Doctor', time: '09:00 AM', status: 'Confirmed', type: 'Consultation' },
+    { id: 2, patient: 'Keshav Patient', doctor: 'Dr. Kanishk Doctor', time: '10:30 AM', status: 'Pending', type: 'Follow-up' },
+    { id: 3, patient: 'Kanishk New', doctor: 'Dr. Kanan Goenka', time: '11:00 AM', status: 'Confirmed', type: 'Surgery' },
+    { id: 4, patient: '	Kanishk Gandecha', doctor: 'Dr. Kanan Goenka', time: '02:00 PM', status: 'Confirmed', type: 'Check-up' },
   ]
 
   const revenueData = [
@@ -72,10 +72,10 @@ const AdminDashboard = () => {
         />
         <StatCard
           title="Revenue (Today)"
-          value={`$${stats.revenueToday.toLocaleString()}`}
+          value={`₹${stats.revenueToday.toLocaleString()}`}
           change="+15.8%"
           trend="up"
-          icon={DollarSign}
+          icon={IndianRupee}
           color="from-orange-600 to-red-600"
         />
       </div>

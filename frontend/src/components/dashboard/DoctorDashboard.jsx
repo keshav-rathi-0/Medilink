@@ -7,15 +7,16 @@ const DoctorDashboard = () => {
   const { darkMode } = useTheme()
 
   const todayAppointments = [
-    { id: 1, patient: 'John Smith', time: '09:00 AM', type: 'Consultation', status: 'Upcoming' },
-    { id: 2, patient: 'Emma Wilson', time: '10:30 AM', type: 'Follow-up', status: 'Upcoming' },
-    { id: 3, patient: 'Michael Brown', time: '02:00 PM', type: 'Check-up', status: 'Completed' },
+    {id: 1, patient: 'Kanan Patient', doctor: 'Dr. Kanishk Doctor', time: '09:00 AM', status: 'Confirmed', type: 'Consultation' },
+    { id: 2, patient: 'Keshav Patient', doctor: 'Dr. Kanishk Doctor', time: '10:30 AM', status: 'Pending', type: 'Follow-up' },
+    { id: 3, patient: 'Kanishk New', doctor: 'Dr. Kanan Goenka', time: '11:00 AM', status: 'Confirmed', type: 'Surgery' },
+    { id: 4, patient: '	Kanishk Gandecha', doctor: 'Dr. Kanan Goenka', time: '02:00 PM', status: 'Confirmed', type: 'Check-up' },
   ]
 
   const recentPatients = [
-    { id: 1, name: 'Sarah Johnson', lastVisit: '2 days ago', diagnosis: 'Hypertension' },
-    { id: 2, name: 'David Lee', lastVisit: '5 days ago', diagnosis: 'Diabetes Type 2' },
-    { id: 3, name: 'Lisa Anderson', lastVisit: '1 week ago', diagnosis: 'Migraine' },
+    { id: 1, name: 'Kanishk Gandehca', lastVisit: '2 days ago', diagnosis: 'Hypertension' },
+    { id: 2, name: 'Kanishk New', lastVisit: '5 days ago', diagnosis: 'Diabetes Type 2' },
+    { id: 3, name: 'Kanan Patient', lastVisit: '1 week ago', diagnosis: 'Migraine' },
   ]
 
   return (

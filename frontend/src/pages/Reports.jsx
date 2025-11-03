@@ -1,7 +1,21 @@
 import React, { useState } from 'react'
-import { BarChart3, TrendingUp, DollarSign, Users, Calendar, Download, Filter } from 'lucide-react'
+import { BarChart3, TrendingUp, Users, Calendar, Download, Filter } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
-import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts'
 
 const Reports = () => {
   const { darkMode } = useTheme()
@@ -64,9 +78,7 @@ const Reports = () => {
             <option value="quarter">This Quarter</option>
             <option value="year">This Year</option>
           </select>
-          <button
-            className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg hover:from-blue-700 hover:to-cyan-700 transition"
-          >
+          <button className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg hover:from-blue-700 hover:to-cyan-700 transition">
             <Download className="w-5 h-5" />
             <span>Export Report</span>
           </button>
@@ -75,12 +87,18 @@ const Reports = () => {
 
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-xl p-6`}>
+        <div
+          className={`${
+            darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+          } border rounded-xl p-6`}
+        >
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500 font-medium">Total Revenue</p>
-              <h3 className={`text-2xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                ${revenueData.reduce((acc, item) => acc + item.revenue, 0).toLocaleString()}
+              <h3
+                className={`text-2xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}
+              >
+                ₹{revenueData.reduce((acc, item) => acc + item.revenue, 0).toLocaleString()}
               </h3>
               <div className="flex items-center mt-2 space-x-1">
                 <TrendingUp className="w-4 h-4 text-green-500" />
@@ -88,16 +106,22 @@ const Reports = () => {
               </div>
             </div>
             <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-              <DollarSign className="w-6 h-6 text-blue-600" />
+              <BarChart3 className="w-6 h-6 text-blue-600" />
             </div>
           </div>
         </div>
 
-        <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-xl p-6`}>
+        <div
+          className={`${
+            darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+          } border rounded-xl p-6`}
+        >
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500 font-medium">Total Patients</p>
-              <h3 className={`text-2xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+              <h3
+                className={`text-2xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}
+              >
                 {patientDistribution.reduce((acc, item) => acc + item.value, 0).toLocaleString()}
               </h3>
               <div className="flex items-center mt-2 space-x-1">
@@ -111,11 +135,17 @@ const Reports = () => {
           </div>
         </div>
 
-        <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-xl p-6`}>
+        <div
+          className={`${
+            darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+          } border rounded-xl p-6`}
+        >
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500 font-medium">Appointments</p>
-              <h3 className={`text-2xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+              <h3
+                className={`text-2xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}
+              >
                 {appointmentData.reduce((acc, item) => acc + item.total, 0)}
               </h3>
               <div className="flex items-center mt-2 space-x-1">
@@ -129,11 +159,17 @@ const Reports = () => {
           </div>
         </div>
 
-        <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-xl p-6`}>
+        <div
+          className={`${
+            darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+          } border rounded-xl p-6`}
+        >
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500 font-medium">Avg Rating</p>
-              <h3 className={`text-2xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+              <h3
+                className={`text-2xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}
+              >
                 4.8/5.0
               </h3>
               <div className="flex items-center mt-2 space-x-1">
@@ -150,7 +186,11 @@ const Reports = () => {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-xl p-6`}>
+        <div
+          className={`${
+            darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+          } border rounded-xl p-6`}
+        >
           <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
             Revenue & Profit Trend
           </h2>
@@ -160,10 +200,11 @@ const Reports = () => {
               <XAxis dataKey="month" stroke={darkMode ? '#9ca3af' : '#6b7280'} />
               <YAxis stroke={darkMode ? '#9ca3af' : '#6b7280'} />
               <Tooltip
+                formatter={(value) => [`₹${value.toLocaleString()}`, '']}
                 contentStyle={{
                   backgroundColor: darkMode ? '#1f2937' : '#ffffff',
                   border: `1px solid ${darkMode ? '#374151' : '#e5e7eb'}`,
-                  borderRadius: '8px'
+                  borderRadius: '8px',
                 }}
               />
               <Legend />
@@ -173,7 +214,11 @@ const Reports = () => {
           </ResponsiveContainer>
         </div>
 
-        <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-xl p-6`}>
+        <div
+          className={`${
+            darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+          } border rounded-xl p-6`}
+        >
           <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
             Appointment Statistics
           </h2>
@@ -186,7 +231,7 @@ const Reports = () => {
                 contentStyle={{
                   backgroundColor: darkMode ? '#1f2937' : '#ffffff',
                   border: `1px solid ${darkMode ? '#374151' : '#e5e7eb'}`,
-                  borderRadius: '8px'
+                  borderRadius: '8px',
                 }}
               />
               <Legend />
@@ -198,7 +243,11 @@ const Reports = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-xl p-6`}>
+        <div
+          className={`${
+            darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+          } border rounded-xl p-6`}
+        >
           <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
             Patient Distribution by Department
           </h2>
@@ -223,7 +272,11 @@ const Reports = () => {
           </ResponsiveContainer>
         </div>
 
-        <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-xl p-6`}>
+        <div
+          className={`${
+            darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+          } border rounded-xl p-6`}
+        >
           <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
             Department Performance
           </h2>
@@ -231,12 +284,14 @@ const Reports = () => {
             {departmentData.map((dept, index) => (
               <div key={index} className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <span className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  <span
+                    className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}
+                  >
                     {dept.name}
                   </span>
                   <div className="text-right">
                     <span className="text-sm font-semibold text-blue-600">{dept.patients} patients</span>
-                    <span className="text-xs text-gray-500 ml-2">${dept.revenue.toLocaleString()}</span>
+                    <span className="text-xs text-gray-500 ml-2">₹{dept.revenue.toLocaleString()}</span>
                   </div>
                 </div>
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">

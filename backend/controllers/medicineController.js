@@ -7,10 +7,15 @@ const asyncHandler = require('../utils/asyncHandler');
 exports.createMedicine = asyncHandler(async (req, res) => {
   const medicine = await Medicine.create(req.body);
   
+  // Ensure the medicine is saved and all fields including medicineId are populated
+  const savedMedicine = await Medicine.findById(medicine._id);
+  
+  console.log('✅ Medicine created:', savedMedicine);
+  
   res.status(201).json({
     success: true,
     message: 'Medicine created successfully',
-    data: medicine
+    data: savedMedicine
   });
 });
 

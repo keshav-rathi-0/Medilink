@@ -799,7 +799,7 @@ const Billing = () => {
             <div className="flex justify-between items-start pb-6 border-b border-gray-200 dark:border-gray-700">
               <div>
                 <h2 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                  MediCare Hospital
+                  MediLink Hospital
                 </h2>
                 <p className="text-sm text-gray-500 mt-1">123 Medical Street, Healthcare City</p>
                 <p className="text-sm text-gray-500">Phone: +91 123 456 7890</p>

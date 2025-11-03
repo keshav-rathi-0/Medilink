@@ -9,7 +9,7 @@ const NurseDashboard = () => {
   const assignedPatients = [
     {
       id: 1,
-      name: 'John Smith',
+      name: 'Kanishk New',
       bedNumber: 'B101',
       ward: 'General Ward A',
       condition: 'Stable',
@@ -18,7 +18,7 @@ const NurseDashboard = () => {
     },
     {
       id: 2,
-      name: 'Emma Johnson',
+      name: 'Keshav Patient',
       bedNumber: 'B102',
       ward: 'General Ward A',
       condition: 'Critical',
@@ -29,7 +29,7 @@ const NurseDashboard = () => {
       id: 3,
       name: 'Robert Davis',
       bedNumber: 'B104',
-      ward: 'General Ward A',
+      ward: 'Kanishk Gandecha',
       condition: 'Stable',
       lastCheckup: '1 hour ago',
       vitals: { bp: '118/75', temp: '98.2°F', pulse: '68 bpm' }

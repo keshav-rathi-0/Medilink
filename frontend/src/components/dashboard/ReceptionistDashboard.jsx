@@ -10,46 +10,45 @@ const ReceptionistDashboard = () => {
     {
       id: 1,
       time: '09:00 AM',
-      patient: 'John Smith',
-      doctor: 'Dr. Sarah Wilson',
+      patient: 'Kanishk New',
+      doctor: 'Dr. Kanan Goenka',
       type: 'Consultation',
       status: 'Checked In'
     },
     {
       id: 2,
       time: '09:30 AM',
-      patient: 'Emma Johnson',
-      doctor: 'Dr. Michael Brown',
+      patient: 'Keshav Patient',
+      doctor: 'Dr. Kanishk Gandecha',
       type: 'Follow-up',
       status: 'Waiting'
     },
     {
       id: 3,
       time: '10:00 AM',
-      patient: 'Robert Davis',
-      doctor: 'Dr. Emily Chen',
+      patient: 'Kanishk Gandecha',
+      doctor: 'Dr. Kanan Goenka',
       type: 'Check-up',
       status: 'Scheduled'
     },
     {
       id: 4,
       time: '10:30 AM',
-      patient: 'Lisa Anderson',
-      doctor: 'Dr. James Taylor',
+      patient: 'Kanan Patient',
+      doctor: 'Dr. Kanishk Gandecha',
       type: 'Consultation',
       status: 'Scheduled'
     }
   ]
 
   const checkIns = [
-    { id: 1, patient: 'John Smith', time: '08:55 AM', doctor: 'Dr. Sarah Wilson' },
-    { id: 2, patient: 'Michael Chen', time: '09:15 AM', doctor: 'Dr. Emily Chen' }
+    { id: 1, patient: 'Kanishk New', time: '08:55 AM', doctor: 'Dr. Sarah Wilson' },
+    { id: 2, patient: 'Keshav Patient', time: '09:15 AM', doctor: 'Dr. Emily Chen' }
   ]
 
   const pendingCalls = [
-    { id: 1, caller: 'Sarah Johnson', reason: 'Appointment Booking', time: '5 min ago' },
-    { id: 2, caller: 'David Lee', reason: 'Report Inquiry', time: '10 min ago' },
-    { id: 3, caller: 'Amy Williams', reason: 'Billing Question', time: '15 min ago' }
+    { id: 1, caller: 'Kanishk Gandecha', reason: 'Appointment Booking', time: '5 min ago' },
+    { id: 2, caller: 'Kanan Patient', reason: 'Report Inquiry', time: '10 min ago' },
   ]
 
   const getStatusColor = (status) => {

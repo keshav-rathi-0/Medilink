@@ -94,7 +94,7 @@ const Register = () => {
             <Activity className="w-10 h-10" />
           </div>
           <h1 className="text-2xl font-bold text-center">Create Account</h1>
-          <p className="text-center text-blue-100 mt-1 text-sm">Join MediCare HMS</p>
+          <p className="text-center text-blue-100 mt-1 text-sm">Join MediLink HMS</p>
         </div>
         
         <div className="p-8">

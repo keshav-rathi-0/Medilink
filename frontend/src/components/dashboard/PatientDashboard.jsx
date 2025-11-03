@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Calendar, FileText, DollarSign, Pill, Clock, MapPin, User } from 'lucide-react'
+import { Calendar, FileText, DollarSign, Pill, Clock, MapPin, User, IndianRupee } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import StatCard from '../common/StatCard'
 
@@ -9,7 +9,7 @@ const PatientDashboard = () => {
   const upcomingAppointments = [
     {
       id: 1,
-      doctor: 'Dr. Sarah Wilson',
+      doctor: 'Dr. Kanan Goenka',
       specialization: 'Cardiology',
       date: '2024-11-05',
       time: '10:00 AM',
@@ -18,7 +18,7 @@ const PatientDashboard = () => {
     },
     {
       id: 2,
-      doctor: 'Dr. Michael Brown',
+      doctor: 'Dr. Kanishk Doctor',
       specialization: 'Neurology',
       date: '2024-11-10',
       time: '02:30 PM',
@@ -30,18 +30,11 @@ const PatientDashboard = () => {
   const recentPrescriptions = [
     {
       id: 1,
-      doctor: 'Dr. Sarah Wilson',
+      doctor: 'Dr. Kanishk Doctor',
       date: '2024-10-25',
       medicines: ['Paracetamol 500mg', 'Amoxicillin 250mg'],
       status: 'Active'
     },
-    {
-      id: 2,
-      doctor: 'Dr. Emily Chen',
-      date: '2024-10-15',
-      medicines: ['Ibuprofen 400mg'],
-      status: 'Completed'
-    }
   ]
 
   const recentBills = [
@@ -104,7 +97,7 @@ const PatientDashboard = () => {
         <StatCard
           title="Pending Bills"
           value={recentBills.filter(b => b.status === 'Pending').length}
-          icon={DollarSign}
+          icon={IndianRupee}
           color="from-orange-600 to-red-600"
         />
         <StatCard

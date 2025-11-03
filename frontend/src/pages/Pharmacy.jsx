@@ -55,9 +55,15 @@ const Pharmacy = () => {
     setLoading(true)
     try {
       const response = await api.get('/medicines')
-      setMedicines(response.data.data || [])
+      console.log('💊 Medicines API Response:', response.data)
+      const medicinesData = response.data.data || []
+      console.log('💊 Total medicines:', medicinesData.length)
+      if (medicinesData.length > 0) {
+        console.log('💊 First medicine sample:', medicinesData[0])
+      }
+      setMedicines(medicinesData)
     } catch (error) {
-      console.error('Fetch error:', error)
+      console.error('❌ Fetch error:', error)
       toast.error('Failed to fetch medicines')
     } finally {
       setLoading(false)
@@ -90,20 +96,26 @@ const Pharmacy = () => {
         reorderLevel: parseInt(formData.reorderLevel) || 50
       }
 
+      console.log('📤 Submitting medicine:', payload)
+
+      let response
       if (selectedMedicine) {
-        await api.put(`/medicines/${selectedMedicine._id}`, payload)
+        response = await api.put(`/medicines/${selectedMedicine._id}`, payload)
+        console.log('✅ Update response:', response.data)
         toast.success('Medicine updated successfully')
       } else {
-        await api.post('/medicines', payload)
+        response = await api.post('/medicines', payload)
+        console.log('✅ Create response:', response.data)
         toast.success('Medicine added successfully')
       }
       
       setShowAddModal(false)
       resetForm()
-      fetchMedicines()
-      fetchStats()
+      await fetchMedicines()
+      await fetchStats()
     } catch (error) {
-      console.error('Submit error:', error)
+      console.error('❌ Submit error:', error)
+      console.error('❌ Error response:', error.response?.data)
       toast.error(error.response?.data?.message || 'Operation failed')
     }
   }
@@ -204,7 +216,11 @@ const Pharmacy = () => {
   }
 
   const columns = [
-    { header: 'Medicine ID', accessor: 'medicineId' },
+    { 
+      header: 'Medicine ID', 
+      accessor: 'medicineId',
+      render: (row) => row.medicineId || 'N/A'
+    },
     {
       header: 'Name',
       accessor: 'name',
@@ -393,6 +409,27 @@ const Pharmacy = () => {
 
       {/* Medicines Table */}
       <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-xl p-6`}>
+        {/* Debug Info */}
+        {medicines.length === 0 && !loading && (
+          <div className={`mb-4 p-4 rounded-lg ${darkMode ? 'bg-yellow-900/20 border-yellow-700' : 'bg-yellow-50 border-yellow-200'} border`}>
+            <p className="text-sm font-semibold mb-2">⚠️ No medicines found</p>
+            <p className="text-xs">Click "Add Medicine" button above to create your first medicine entry.</p>
+            <p className="text-xs mt-1">Check browser console (F12) for API response details.</p>
+          </div>
+        )}
+        
+        {loading && (
+          <div className="text-center py-8">
+            <p className="text-gray-500">Loading medicines...</p>
+          </div>
+        )}
+        
+        {!loading && medicines.length > 0 && (
+          <div className={`mb-4 p-3 rounded-lg ${darkMode ? 'bg-green-900/20 border-green-700' : 'bg-green-50 border-green-200'} border`}>
+            <p className="text-sm">✅ Loaded {medicines.length} medicine(s) - Check console for details</p>
+          </div>
+        )}
+        
         <TableComponent
           columns={columns}
           data={medicines}

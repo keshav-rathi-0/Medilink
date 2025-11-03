@@ -3,8 +3,7 @@ const mongoose = require('mongoose');
 const medicineSchema = new mongoose.Schema({
   medicineId: {
     type: String,
-    unique: true,
-    required: true
+    unique: true
   },
   name: {
     type: String,
@@ -108,17 +107,24 @@ const medicineSchema = new mongoose.Schema({
 // Generate unique medicine ID before saving
 medicineSchema.pre('save', async function(next) {
   if (this.isNew && !this.medicineId) {
-    const timestamp = Date.now().toString().slice(-6);
-    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-    this.medicineId = `MED${timestamp}${random}`;
+    let isUnique = false;
+    let medicineId;
     
-    // Check for uniqueness
-    const exists = await this.constructor.findOne({ medicineId: this.medicineId });
-    if (exists) {
-      const newRandom = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-      this.medicineId = `MED${timestamp}${newRandom}`;
+    while (!isUnique) {
+      const timestamp = Date.now().toString().slice(-6);
+      const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+      medicineId = `MED${timestamp}${random}`;
+      
+      // Check for uniqueness
+      const exists = await this.constructor.findOne({ medicineId });
+      if (!exists) {
+        isUnique = true;
+      }
     }
+    
+    this.medicineId = medicineId;
   }
+  
   this.updatedAt = Date.now();
   next();
 });

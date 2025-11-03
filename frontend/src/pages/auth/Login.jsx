@@ -42,7 +42,7 @@ const Login = () => {
           <div className="flex items-center justify-center mb-4">
             <Activity className="w-12 h-12" />
           </div>
-          <h1 className="text-3xl font-bold text-center">MediCare HMS</h1>
+          <h1 className="text-3xl font-bold text-center">MediLink HMS</h1>
           <p className="text-center text-blue-100 mt-2">Advanced Hospital Management System</p>
         </div>
         

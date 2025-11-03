@@ -43,8 +43,6 @@ const Dashboard = () => {
       case 'receptionist':
         return <ReceptionistDashboard />
       
-      case 'pharmacist':
-        // You can create a PharmacistDashboard or use a default
         return <AdminDashboard />
       
       default:
