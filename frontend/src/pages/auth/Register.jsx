@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Activity } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
+import { toast } from 'react-toastify'
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -9,33 +10,75 @@ const Register = () => {
     email: '',
     password: '',
     confirmPassword: '',
-    role: 'patient',
+    role: 'Patient',
     phone: '',
     dateOfBirth: '',
-    gender: ''
+    gender: '',
+    address: {
+      street: '',
+      city: '',
+      state: '',
+      zipCode: '',
+      country: 'USA'
+    }
   })
   const [loading, setLoading] = useState(false)
   const { register } = useAuth()
+  const navigate = useNavigate()
 
   const handleChange = (e) => {
     const { name, value } = e.target
-    setFormData(prev => ({ ...prev, [name]: value }))
+    
+    // Handle address fields separately
+    if (name.startsWith('address.')) {
+      const addressField = name.split('.')[1]
+      setFormData(prev => ({
+        ...prev,
+        address: {
+          ...prev.address,
+          [addressField]: value
+        }
+      }))
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }))
+    }
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    
+    // Validation
     if (formData.password !== formData.confirmPassword) {
-      alert('Passwords do not match')
+      toast.error('Passwords do not match')
       return
     }
+
+    if (formData.password.length < 6) {
+      toast.error('Password must be at least 6 characters')
+      return
+    }
+
     setLoading(true)
-    const { name, email, password, role, phone } = formData
-    const payload = { name, email, password, role, phone }
+    
+    // Prepare payload with all required fields
+    const payload = {
+      name: formData.name,
+      email: formData.email,
+      password: formData.password,
+      role: formData.role,
+      phone: formData.phone,
+      dateOfBirth: formData.dateOfBirth,
+      gender: formData.gender,
+      address: formData.address
+    }
 
     try {
       await register(payload)
+      toast.success('Registration successful! Please login.')
+      navigate('/login')
     } catch (error) {
       console.error('Registration error:', error)
+      toast.error(error.response?.data?.message || 'Registration failed')
     } finally {
       setLoading(false)
     }
@@ -45,7 +88,7 @@ const Register = () => {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
       
-      <div className="max-w-2xl w-full bg-white rounded-2xl shadow-2xl overflow-hidden relative z-10 my-8">
+      <div className="max-w-4xl w-full bg-white rounded-2xl shadow-2xl overflow-hidden relative z-10 my-8">
         <div className="bg-gradient-to-r from-blue-600 to-cyan-600 p-6 text-white">
           <div className="flex items-center justify-center mb-3">
             <Activity className="w-10 h-10" />
@@ -57,8 +100,13 @@ const Register = () => {
         <div className="p-8">
           <form onSubmit={handleSubmit}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {/* Personal Information */}
+              <div className="md:col-span-2">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b">Personal Information</h3>
+              </div>
+
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Full Name *</label>
                 <input
                   type="text"
                   name="name"
@@ -71,7 +119,7 @@ const Register = () => {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Email Address *</label>
                 <input
                   type="email"
                   name="email"
@@ -84,7 +132,7 @@ const Register = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number *</label>
                 <input
                   type="tel"
                   name="phone"
@@ -97,7 +145,7 @@ const Register = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Date of Birth</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Date of Birth *</label>
                 <input
                   type="date"
                   name="dateOfBirth"
@@ -109,7 +157,7 @@ const Register = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Gender</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Gender *</label>
                 <select
                   name="gender"
                   value={formData.gender}
@@ -118,14 +166,14 @@ const Register = () => {
                   required
                 >
                   <option value="">Select Gender</option>
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                  <option value="other">Other</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Role *</label>
                 <select
                   name="role"
                   value={formData.role}
@@ -133,28 +181,99 @@ const Register = () => {
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
                 >
-                  <option value="patient">Patient</option>
-                  <option value="doctor">Doctor</option>
-                  <option value="nurse">Nurse</option>
-                  <option value="receptionist">Receptionist</option>
+                  <option value="Patient">Patient</option>
+                  <option value="Doctor">Doctor</option>
+                  <option value="Nurse">Nurse</option>
+                  <option value="Receptionist">Receptionist</option>
                 </select>
+              </div>
+
+              {/* Address Information */}
+              <div className="md:col-span-2 mt-4">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b">Address Information</h3>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Street Address</label>
+                <input
+                  type="text"
+                  name="address.street"
+                  value={formData.address.street}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="123 Main Street"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">City</label>
+                <input
+                  type="text"
+                  name="address.city"
+                  value={formData.address.city}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="New York"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">State</label>
+                <input
+                  type="text"
+                  name="address.state"
+                  value={formData.address.state}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="NY"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Zip Code</label>
+                <input
+                  type="text"
+                  name="address.zipCode"
+                  value={formData.address.zipCode}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="10001"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Country</label>
+                <input
+                  type="text"
+                  name="address.country"
+                  value={formData.address.country}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="USA"
+                />
+              </div>
+
+              {/* Security Information */}
+              <div className="md:col-span-2 mt-4">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b">Security</h3>
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Password *</label>
                 <input
                   type="password"
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Create password"
+                  placeholder="Create password (min 6 characters)"
                   required
+                  minLength={6}
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Confirm Password</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Confirm Password *</label>
                 <input
                   type="password"
                   name="confirmPassword"
@@ -163,6 +282,7 @@ const Register = () => {
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Confirm password"
                   required
+                  minLength={6}
                 />
               </div>
             </div>
@@ -170,7 +290,7 @@ const Register = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-6 bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-cyan-700 transition transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+              className="w-full mt-6 bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-cyan-700 transition transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Creating Account...' : 'Create Account'}
             </button>
