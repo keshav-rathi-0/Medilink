@@ -10,7 +10,7 @@ Tech Stack
 * Backend: Node.js, Express.js
 * Database: MongoDB Atlas
 * Auth: JWT
-* Testing: Postman / ThunderClient
+* Testing: Postman
 
 Features
 
