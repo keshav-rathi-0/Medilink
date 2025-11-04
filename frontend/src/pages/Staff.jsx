@@ -194,9 +194,6 @@ const Staff = () => {
       accessor: 'name',
       render: (row) => (
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center text-white font-semibold">
-            {row.userId?.name ? row.userId.name.split(' ').map(n => n[0]).join('') : '?'}
-          </div>
           <div>
             <p className="font-semibold">{row.userId?.name || 'N/A'}</p>
             <p className="text-xs text-gray-500">{row.userId?.email || 'N/A'}</p>
@@ -258,35 +255,13 @@ const Staff = () => {
         </span>
       )
     },
-    {
-      header: 'Performance',
-      accessor: 'performance',
-      render: (row) => (
-        <div className="flex items-center space-x-1">
-          <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-          <span className="font-medium">{row.performance?.rating || 'N/A'}</span>
-        </div>
-      )
-    },
+
     {
       header: 'Actions',
       accessor: 'actions',
       render: (row) => (
         <div className="flex space-x-2">
-          <button
-            onClick={() => {
-              setSelectedStaff(row)
-              setPerformanceData({
-                rating: row.performance?.rating || 0,
-                notes: row.performance?.notes || ''
-              })
-              setShowPerformanceModal(true)
-            }}
-            className="p-2 text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded-lg transition"
-            title="Update Performance"
-          >
-            <Award className="w-4 h-4" />
-          </button>
+
           <button
             onClick={() => {
               setSelectedStaff(row)

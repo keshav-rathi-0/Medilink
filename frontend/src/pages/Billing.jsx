@@ -96,7 +96,6 @@ const Billing = () => {
 
   const fetchPatients = async () => {
     try {
-      // Use SAME endpoint as Patients.jsx - /patients with high limit
       const response = await billingService.getAllPatients({ limit: 1000 })
       console.log('✅ Patients Response:', response.data)
       
@@ -117,14 +116,28 @@ const Billing = () => {
   const fetchStats = async () => {
     try {
       const response = await billingService.getBillingStats()
-      setStats(response.data?.data || {
+      console.log('📊 Stats Response:', response)
+      
+      // Handle different response structures
+      const statsData = response.data?.data || response.data || response
+      
+      console.log('📊 Processed Stats:', statsData)
+      
+      setStats({
+        totalRevenue: statsData.totalRevenue || 0,
+        totalCollected: statsData.totalCollected || 0,
+        totalPending: statsData.totalPending || 0,
+        totalBills: statsData.totalBills || 0
+      })
+    } catch (error) {
+      console.error('❌ Stats error:', error)
+      // Set default values on error
+      setStats({
         totalRevenue: 0,
         totalCollected: 0,
         totalPending: 0,
         totalBills: 0
       })
-    } catch (error) {
-      console.error('Stats error:', error)
     }
   }
 
@@ -179,22 +192,43 @@ const Billing = () => {
         return
       }
 
+      // Find the selected patient to get the userId
+      const selectedPatient = patients.find(p => p._id === generateData.patient)
+      
+      console.log('🔍 Selected Patient:', selectedPatient)
+      
+      if (!selectedPatient) {
+        toast.error('Patient not found')
+        return
+      }
+
+      if (!selectedPatient.userId || !selectedPatient.userId._id) {
+        console.error('❌ Patient structure:', selectedPatient)
+        toast.error('Invalid patient data structure')
+        return
+      }
+
       const payload = {
-        patient: generateData.patient,
+        patient: selectedPatient.userId._id, // Send the userId._id instead of patient._id
         items: generateData.items,
         discount: parseFloat(generateData.discount) || 0,
         tax: parseFloat(generateData.tax) || 0,
         notes: generateData.notes
       }
 
+      console.log('📤 Create Bill Payload:', payload)
+
       const response = await billingService.createBill(payload)
+      console.log('✅ Bill Creation Response:', response)
+      
       toast.success(response.data?.message || 'Bill generated successfully')
       setShowGenerateModal(false)
       resetGenerateForm()
       fetchBills()
       fetchStats()
     } catch (error) {
-      console.error('Generate bill error:', error)
+      console.error('❌ Generate bill error:', error)
+      console.error('❌ Error response:', error.response?.data)
       toast.error(error.response?.data?.message || 'Failed to generate bill')
     }
   }
@@ -318,7 +352,7 @@ const Billing = () => {
         const patientId = row.patient?.patientId || 'N/A'
         return (
           <div>
-            <p className="font-semibold">{patientName}</p>
+            <p className="font-medium text-sm">{patientName}</p>
             <p className="text-xs text-gray-500">{patientId}</p>
           </div>
         )
@@ -327,39 +361,24 @@ const Billing = () => {
     {
       header: 'Date',
       accessor: 'billDate',
-      render: (row) => new Date(row.billDate).toLocaleDateString()
+      render: (row) => <span className="text-sm">{new Date(row.billDate).toLocaleDateString()}</span>
     },
-    {
-      header: 'Items',
-      accessor: 'items',
-      render: (row) => (
-        <div className="text-sm">
-          {row.items?.slice(0, 2).map((item, index) => (
-            <div key={index} className="text-gray-600 dark:text-gray-400">
-              {item.description}
-            </div>
-          ))}
-          {row.items?.length > 2 && (
-            <span className="text-xs text-blue-600">+{row.items.length - 2} more</span>
-          )}
-        </div>
-      )
-    },
+  
     {
       header: 'Total Amount',
       accessor: 'totalAmount',
-      render: (row) => <span className="font-semibold">₹{row.totalAmount?.toFixed(2)}</span>
+      render: (row) => <span className="font-semibold text-sm">₹{row.totalAmount?.toFixed(2)}</span>
     },
     {
       header: 'Paid',
       accessor: 'amountPaid',
-      render: (row) => <span className="text-green-600 font-semibold">₹{row.amountPaid?.toFixed(2)}</span>
+      render: (row) => <span className="text-green-600 font-semibold text-sm">₹{row.amountPaid?.toFixed(2)}</span>
     },
     {
       header: 'Balance',
       accessor: 'balance',
       render: (row) => (
-        <span className={`font-semibold ${row.balance > 0 ? 'text-red-600' : 'text-gray-500'}`}>
+        <span className={`font-semibold text-sm ${row.balance > 0 ? 'text-red-600' : 'text-gray-500'}`}>
           ₹{row.balance?.toFixed(2)}
         </span>
       )
@@ -368,7 +387,7 @@ const Billing = () => {
       header: 'Status',
       accessor: 'paymentStatus',
       render: (row) => (
-        <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(row.paymentStatus)}`}>
+        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(row.paymentStatus)}`}>
           {row.paymentStatus}
         </span>
       )
@@ -377,16 +396,16 @@ const Billing = () => {
       header: 'Actions',
       accessor: 'actions',
       render: (row) => (
-        <div className="flex space-x-2">
+        <div className="flex space-x-1">
           <button
             onClick={() => {
               setSelectedBill(row)
               setShowInvoiceModal(true)
             }}
-            className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition"
+            className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition"
             title="View Invoice"
           >
-            <Eye className="w-4 h-4" />
+            <Eye className="w-3.5 h-3.5" />
           </button>
           {row.balance > 0 && (
             <>
@@ -396,10 +415,10 @@ const Billing = () => {
                   setPaymentData({ ...paymentData, amount: row.balance })
                   setShowPaymentModal(true)
                 }}
-                className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition"
+                className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition"
                 title="Record Payment"
               >
-                <CreditCard className="w-4 h-4" />
+                <CreditCard className="w-3.5 h-3.5" />
               </button>
               {!row.insuranceClaim && (
                 <button
@@ -408,10 +427,10 @@ const Billing = () => {
                     setInsuranceData({ claimNumber: '', provider: '', amountClaimed: row.balance.toString() })
                     setShowInsuranceModal(true)
                   }}
-                  className="p-2 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition"
+                  className="p-1.5 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition"
                   title="Insurance Claim"
                 >
-                  <FileText className="w-4 h-4" />
+                  <FileText className="w-3.5 h-3.5" />
                 </button>
               )}
             </>
@@ -419,10 +438,10 @@ const Billing = () => {
           {row.amountPaid === 0 && (
             <button
               onClick={() => handleDeleteBill(row._id)}
-              className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
+              className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
               title="Delete"
             >
-              <Trash2 className="w-4 h-4" />
+              <Trash2 className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
@@ -431,80 +450,80 @@ const Billing = () => {
   ]
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 p-8">
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+          <h1 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
             Billing & Payment
           </h1>
-          <p className="text-gray-500 mt-1">Manage invoices and track payments</p>
+          <p className="text-sm text-gray-500 mt-1">Manage invoices and track payments</p>
         </div>
         <button
           onClick={() => {
             resetGenerateForm()
             setShowGenerateModal(true)
           }}
-          className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg hover:from-blue-700 hover:to-cyan-700 transition"
+          className="flex items-center space-x-2 px-3 py-2 text-sm bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg hover:from-blue-700 hover:to-cyan-700 transition"
         >
-          <Plus className="w-5 h-5" />
+          <Plus className="w-4 h-4" />
           <span>Generate Invoice</span>
         </button>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-xl p-6`}>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+        <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-lg p-5`}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500 font-medium">Total Revenue</p>
-              <h3 className={`text-2xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+              <p className="text-xs text-gray-500 font-medium">Total Revenue</p>
+              <h3 className={`text-xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
                 ₹{(stats.totalRevenue || 0).toLocaleString()}
               </h3>
             </div>
-            <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-              <DollarSign className="w-6 h-6 text-blue-600" />
+            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+              <DollarSign className="w-5 h-5 text-blue-600" />
             </div>
           </div>
         </div>
 
-        <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-xl p-6`}>
+        <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-lg p-5`}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500 font-medium">Collected</p>
-              <h3 className={`text-2xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+              <p className="text-xs text-gray-500 font-medium">Collected</p>
+              <h3 className={`text-xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
                 ₹{(stats.totalCollected || 0).toLocaleString()}
               </h3>
             </div>
-            <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
-              <CheckCircle className="w-6 h-6 text-green-600" />
+            <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+              <CheckCircle className="w-5 h-5 text-green-600" />
             </div>
           </div>
         </div>
 
-        <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-xl p-6`}>
+        <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-lg p-5`}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500 font-medium">Pending</p>
-              <h3 className={`text-2xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+              <p className="text-xs text-gray-500 font-medium">Pending</p>
+              <h3 className={`text-xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
                 ₹{(stats.totalPending || 0).toLocaleString()}
               </h3>
             </div>
-            <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-lg">
-              <Clock className="w-6 h-6 text-red-600" />
+            <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
+              <Clock className="w-5 h-5 text-red-600" />
             </div>
           </div>
         </div>
 
-        <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-xl p-6`}>
+        <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-lg p-5`}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500 font-medium">Total Invoices</p>
-              <h3 className={`text-2xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+              <p className="text-xs text-gray-500 font-medium">Total Invoices</p>
+              <h3 className={`text-xl font-bold mt-1 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
                 {stats.totalBills || 0}
               </h3>
             </div>
-            <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-              <FileText className="w-6 h-6 text-purple-600" />
+            <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+              <FileText className="w-5 h-5 text-purple-600" />
             </div>
           </div>
         </div>
@@ -540,7 +559,6 @@ const Billing = () => {
               >
                 <option value="">Select Patient ({patients.length} available)</option>
                 {patients.map((patient) => {
-                  // Patient object has userId populated, exactly like Patients.jsx
                   const patientName = patient?.userId?.name || 'Unknown'
                   const patientId = patient?.patientId || 'N/A'
                   
@@ -791,9 +809,355 @@ const Billing = () => {
         </div>
       </Modal>
 
-      {/* Continue with rest of modals... (Payment, Insurance, Invoice - same as before) */}
-      {/* I'll skip repeating them to save space, but include them all from the previous version */}
+      {/* Payment Modal */}
+      <Modal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        title="Record Payment"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+              Amount *
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={paymentData.amount}
+              onChange={(e) => setPaymentData({ ...paymentData, amount: e.target.value })}
+              className={`w-full px-4 py-2 rounded-lg border ${
+                darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+              } focus:ring-2 focus:ring-blue-500`}
+              placeholder="Enter payment amount"
+            />
+          </div>
 
+          <div>
+            <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+              Payment Method *
+            </label>
+            <select
+              value={paymentData.paymentMethod}
+              onChange={(e) => setPaymentData({ ...paymentData, paymentMethod: e.target.value })}
+              className={`w-full px-4 py-2 rounded-lg border ${
+                darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+              } focus:ring-2 focus:ring-blue-500`}
+            >
+              <option value="">Select payment method</option>
+              <option value="Cash">Cash</option>
+              <option value="Card">Card</option>
+              <option value="UPI">UPI</option>
+              <option value="Net Banking">Net Banking</option>
+              <option value="Cheque">Cheque</option>
+            </select>
+          </div>
+
+          <div>
+            <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+              Transaction ID (Optional)
+            </label>
+            <input
+              type="text"
+              value={paymentData.transactionId}
+              onChange={(e) => setPaymentData({ ...paymentData, transactionId: e.target.value })}
+              className={`w-full px-4 py-2 rounded-lg border ${
+                darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+              } focus:ring-2 focus:ring-blue-500`}
+              placeholder="Enter transaction ID"
+            />
+          </div>
+
+          <div>
+            <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+              Notes (Optional)
+            </label>
+            <textarea
+              value={paymentData.notes}
+              onChange={(e) => setPaymentData({ ...paymentData, notes: e.target.value })}
+              className={`w-full px-4 py-2 rounded-lg border ${
+                darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+              } focus:ring-2 focus:ring-blue-500`}
+              rows="3"
+              placeholder="Any additional notes..."
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end space-x-3 mt-6">
+          <button
+            onClick={() => setShowPaymentModal(false)}
+            className={`px-6 py-2 rounded-lg border ${
+              darkMode ? 'border-gray-600 hover:bg-gray-700' : 'border-gray-300 hover:bg-gray-50'
+            } transition`}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleRecordPayment}
+            className="px-6 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition"
+          >
+            Record Payment
+          </button>
+        </div>
+      </Modal>
+
+      {/* Insurance Modal */}
+      <Modal
+        isOpen={showInsuranceModal}
+        onClose={() => setShowInsuranceModal(false)}
+        title="Submit Insurance Claim"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+              Claim Number *
+            </label>
+            <input
+              type="text"
+              value={insuranceData.claimNumber}
+              onChange={(e) => setInsuranceData({ ...insuranceData, claimNumber: e.target.value })}
+              className={`w-full px-4 py-2 rounded-lg border ${
+                darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+              } focus:ring-2 focus:ring-blue-500`}
+              placeholder="Enter claim number"
+            />
+          </div>
+
+          <div>
+            <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+              Insurance Provider *
+            </label>
+            <input
+              type="text"
+              value={insuranceData.provider}
+              onChange={(e) => setInsuranceData({ ...insuranceData, provider: e.target.value })}
+              className={`w-full px-4 py-2 rounded-lg border ${
+                darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+              } focus:ring-2 focus:ring-blue-500`}
+              placeholder="Enter insurance provider name"
+            />
+          </div>
+
+          <div>
+            <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+              Amount Claimed *
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={insuranceData.amountClaimed}
+              onChange={(e) => setInsuranceData({ ...insuranceData, amountClaimed: e.target.value })}
+              className={`w-full px-4 py-2 rounded-lg border ${
+                darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+              } focus:ring-2 focus:ring-blue-500`}
+              placeholder="Enter claimed amount"
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end space-x-3 mt-6">
+          <button
+            onClick={() => setShowInsuranceModal(false)}
+            className={`px-6 py-2 rounded-lg border ${
+              darkMode ? 'border-gray-600 hover:bg-gray-700' : 'border-gray-300 hover:bg-gray-50'
+            } transition`}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleProcessInsurance}
+            className="px-6 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition"
+          >
+            Submit Claim
+          </button>
+        </div>
+      </Modal>
+
+      {/* Invoice View Modal */}
+      <Modal
+        isOpen={showInvoiceModal}
+        onClose={() => setShowInvoiceModal(false)}
+        title="Invoice Details"
+        size="xl"
+      >
+        {selectedBill && (
+          <div className="space-y-6">
+            {/* Invoice Header */}
+            <div className="flex justify-between items-start pb-4 border-b border-gray-200 dark:border-gray-700">
+              <div>
+                <h2 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                  Invoice #{selectedBill.billNumber}
+                </h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  Date: {new Date(selectedBill.billDate).toLocaleDateString()}
+                </p>
+              </div>
+              <div className="text-right">
+                <span className={`px-4 py-2 rounded-full text-sm font-medium ${getStatusColor(selectedBill.paymentStatus)}`}>
+                  {selectedBill.paymentStatus}
+                </span>
+              </div>
+            </div>
+
+            {/* Patient Info */}
+            <div>
+              <h3 className={`text-sm font-semibold mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Patient Information
+              </h3>
+              <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-750' : 'bg-gray-50'}`}>
+                <p className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                  {selectedBill.patient?.userId?.name || 'Unknown'}
+                </p>
+                <p className="text-sm text-gray-500">
+                  Patient ID: {selectedBill.patient?.patientId || 'N/A'}
+                </p>
+              </div>
+            </div>
+
+            {/* Items */}
+            <div>
+              <h3 className={`text-sm font-semibold mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Items
+              </h3>
+              <div className={`rounded-lg border overflow-hidden ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                <table className="w-full">
+                  <thead className={`${darkMode ? 'bg-gray-750' : 'bg-gray-50'}`}>
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Description</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Category</th>
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Qty</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Price</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className={`divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
+                    {selectedBill.items?.map((item, index) => (
+                      <tr key={index} className={darkMode ? 'bg-gray-800' : 'bg-white'}>
+                        <td className="px-4 py-3 text-sm">{item.description}</td>
+                        <td className="px-4 py-3 text-sm">{item.category}</td>
+                        <td className="px-4 py-3 text-sm text-center">{item.quantity}</td>
+                        <td className="px-4 py-3 text-sm text-right">₹{item.unitPrice?.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-sm text-right font-semibold">
+                          ₹{((item.quantity || 0) * (item.unitPrice || 0)).toFixed(2)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Summary */}
+            <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-750' : 'bg-gray-50'}`}>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Subtotal:</span>
+                  <span className={`font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                    ₹{selectedBill.subtotal?.toFixed(2)}
+                  </span>
+                </div>
+                {selectedBill.discount > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Discount:</span>
+                    <span className="text-red-600 font-medium">
+                      -₹{selectedBill.discount?.toFixed(2)}
+                    </span>
+                  </div>
+                )}
+                {selectedBill.tax > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Tax:</span>
+                    <span className={`font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                      +₹{selectedBill.tax?.toFixed(2)}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between text-lg font-bold border-t border-gray-300 dark:border-gray-600 pt-2">
+                  <span>Total Amount:</span>
+                  <span className="text-blue-600">₹{selectedBill.totalAmount?.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Amount Paid:</span>
+                  <span className="text-green-600 font-semibold">
+                    ₹{selectedBill.amountPaid?.toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-lg font-bold">
+                  <span>Balance Due:</span>
+                  <span className={selectedBill.balance > 0 ? 'text-red-600' : 'text-gray-500'}>
+                    ₹{selectedBill.balance?.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Payment History */}
+            {selectedBill.paymentHistory && selectedBill.paymentHistory.length > 0 && (
+              <div>
+                <h3 className={`text-sm font-semibold mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Payment History
+                </h3>
+                <div className="space-y-2">
+                  {selectedBill.paymentHistory.map((payment, index) => (
+                    <div
+                      key={index}
+                      className={`p-3 rounded-lg ${darkMode ? 'bg-gray-750' : 'bg-gray-50'}`}
+                    >
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <p className={`font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                            ₹{payment.amount?.toFixed(2)}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {payment.paymentMethod} • {new Date(payment.date).toLocaleDateString()}
+                          </p>
+                        </div>
+                        {payment.transactionId && (
+                          <p className="text-xs text-gray-500">
+                            Trans ID: {payment.transactionId}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Notes */}
+            {selectedBill.notes && (
+              <div>
+                <h3 className={`text-sm font-semibold mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Notes
+                </h3>
+                <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {selectedBill.notes}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex justify-end space-x-3 mt-6">
+          <button
+            onClick={() => setShowInvoiceModal(false)}
+            className={`px-6 py-2 rounded-lg border ${
+              darkMode ? 'border-gray-600 hover:bg-gray-700' : 'border-gray-300 hover:bg-gray-50'
+            } transition`}
+          >
+            Close
+          </button>
+          <button
+            onClick={() => window.print()}
+            className="flex items-center space-x-2 px-6 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg hover:from-blue-700 hover:to-cyan-700 transition"
+          >
+            <Download className="w-4 h-4" />
+            <span>Print Invoice</span>
+          </button>
+        </div>
+      </Modal>
     </div>
   )
 }

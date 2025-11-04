@@ -10,6 +10,16 @@ export const getAllPatients = async (params) => {
   }
 }
 
+// Get billing stats (MUST be called before other routes to avoid conflicts)
+export const getBillingStats = async (params) => {
+  try {
+    return await api.get('/billing/stats', { params })
+  } catch (error) {
+    console.error('Error fetching billing stats:', error)
+    throw error
+  }
+}
+
 // Get all bills
 export const getAllBills = async (params) => {
   try {
@@ -33,9 +43,12 @@ export const getBillById = async (id) => {
 // Create new bill
 export const createBill = async (data) => {
   try {
-    return await api.post('/billing', data)
+    console.log('Creating bill with data:', data)
+    const response = await api.post('/billing', data)
+    console.log('Bill created:', response)
+    return response
   } catch (error) {
-    console.error('Error creating bill:', error)
+    console.error(' Error creating bill:', error.response?.data || error.message)
     throw error
   }
 }
@@ -88,16 +101,6 @@ export const updateInsuranceClaim = async (id, data) => {
     return await api.put(`/billing/${id}/insurance`, data)
   } catch (error) {
     console.error('Error updating insurance claim:', error)
-    throw error
-  }
-}
-
-// Get billing stats
-export const getBillingStats = async (params) => {
-  try {
-    return await api.get('/billing/stats', { params })
-  } catch (error) {
-    console.error('Error fetching billing stats:', error)
     throw error
   }
 }
