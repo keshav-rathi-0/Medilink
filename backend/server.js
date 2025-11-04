@@ -30,7 +30,7 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
   FRONTEND_URL,
-  'https://medilink1.vercel.app',
+  'https://medilinkfinal-git-main-kanishks-projects-810056d9.vercel.app/login',
   'https://medilink-oajt.onrender.com'
 ];
 
